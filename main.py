@@ -35,7 +35,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Field-Tested",
         "price": 18.75,
         "stock": 6,
-        "image": "https://placehold.co/640x420/171923/e34c3e?text=AK-47+Redline",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=AK-47+Redline",
         "description": "Qizil va qora rangdagi klassik AK-47 skin. Demo listing.",
     },
     {
@@ -46,7 +46,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Field-Tested",
         "price": 92.50,
         "stock": 2,
-        "image": "https://placehold.co/640x420/171923/f5f5f5?text=AWP+Asiimov",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=AWP+Asiimov",
         "description": "Futuristik oq-to‘q sariq sniper finish. Demo listing.",
     },
     {
@@ -57,7 +57,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Minimal Wear",
         "price": 74.20,
         "stock": 3,
-        "image": "https://placehold.co/640x420/171923/e9e9e9?text=M4A1-S+Printstream",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=M4A1-S+Printstream",
         "description": "Monoxrom pearl-like dizayn. Demo listing.",
     },
     {
@@ -68,7 +68,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Field-Tested",
         "price": 39.90,
         "stock": 5,
-        "image": "https://placehold.co/640x420/171923/f04f46?text=USP-S+Kill+Confirmed",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=USP-S+Kill+Confirmed",
         "description": "Yorqin illustratsiyali USP-S. Demo listing.",
     },
     {
@@ -79,7 +79,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Factory New",
         "price": 82.00,
         "stock": 1,
-        "image": "https://placehold.co/640x420/171923/f1a54b?text=Glock-18+Fade",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=Glock-18+Fade",
         "description": "Gradient metallic fade. Demo listing.",
     },
     {
@@ -90,7 +90,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Factory New",
         "price": 465.00,
         "stock": 1,
-        "image": "https://placehold.co/640x420/171923/9c72f2?text=Karambit+Doppler",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=Karambit+Doppler",
         "description": "Egri pichoq, Doppler phase. Demo listing.",
     },
     {
@@ -101,7 +101,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Minimal Wear",
         "price": 48.60,
         "stock": 4,
-        "image": "https://placehold.co/640x420/171923/dedede?text=Desert+Eagle+Printstream",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=Desert+Eagle+Printstream",
         "description": "Oq-qora pearlescent finish. Demo listing.",
     },
     {
@@ -112,7 +112,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Minimal Wear",
         "price": 12.40,
         "stock": 9,
-        "image": "https://placehold.co/640x420/171923/7ac7c3?text=P250+See+Ya+Later",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=P250+See+Ya+Later",
         "description": "Rangli creature-inspired skin. Demo listing.",
     },
     {
@@ -123,7 +123,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Field-Tested",
         "price": 68.30,
         "stock": 3,
-        "image": "https://placehold.co/640x420/171923/c0392b?text=AK-47+Vulcan",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=AK-47+Vulcan",
         "description": "Qizil race-car uslubidagi AK. Demo listing.",
     },
     {
@@ -134,7 +134,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Field-Tested",
         "price": 4200.00,
         "stock": 1,
-        "image": "https://placehold.co/640x420/171923/d4a017?text=AWP+Dragon+Lore",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=AWP+Dragon+Lore",
         "description": "Afsonaviy oltin ajdaho. Demo listing (narx taxminiy).",
     },
     {
@@ -145,7 +145,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Factory New",
         "price": 890.00,
         "stock": 1,
-        "image": "https://placehold.co/640x420/171923/ff6b6b?text=Butterfly+Fade",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=Butterfly+Fade",
         "description": "Butterfly knife gradient fade. Demo listing.",
     },
     {
@@ -156,7 +156,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Minimal Wear",
         "price": 1850.00,
         "stock": 1,
-        "image": "https://placehold.co/640x420/171923/e74c3c?text=M4A4+Howl",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=M4A4+Howl",
         "description": "Contraband rarity, qizil bo‘ri. Demo listing.",
     },
     {
@@ -167,7 +167,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Factory New",
         "price": 28.50,
         "stock": 7,
-        "image": "https://placehold.co/640x420/171923/9b59b6?text=USP-S+Neo-Noir",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=USP-S+Neo-Noir",
         "description": "Badiiy neo-noir uslub. Demo listing.",
     },
     {
@@ -178,7 +178,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Minimal Wear",
         "price": 55.80,
         "stock": 4,
-        "image": "https://placehold.co/640x420/171923/c0392b?text=AK-47+Bloodsport",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=AK-47+Bloodsport",
         "description": "Sportiv qizil-qora AK. Demo listing.",
     },
     {
@@ -189,7 +189,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Field-Tested",
         "price": 42.10,
         "stock": 5,
-        "image": "https://placehold.co/640x420/171923/2ecc71?text=AWP+Containment",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=AWP+Containment",
         "description": "Yashil kontainment uslubi. Demo listing.",
     },
     {
@@ -200,7 +200,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Minimal Wear",
         "price": 9.80,
         "stock": 12,
-        "image": "https://placehold.co/640x420/171923/3498db?text=Glock+Water",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=Glock+Water",
         "description": "Suv elementlari. Demo listing.",
     },
     {
@@ -211,7 +211,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Factory New",
         "price": 520.00,
         "stock": 2,
-        "image": "https://placehold.co/640x420/171923/e67e22?text=Bayonet+Marble",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=Bayonet+Marble",
         "description": "Marble Fade phase. Demo listing.",
     },
     {
@@ -222,7 +222,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Factory New",
         "price": 185.00,
         "stock": 2,
-        "image": "https://placehold.co/640x420/171923/e74c3c?text=Deagle+Blaze",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=Deagle+Blaze",
         "description": "Olovli blaze finish. Demo listing.",
     },
     {
@@ -233,7 +233,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Field-Tested",
         "price": 14.20,
         "stock": 8,
-        "image": "https://placehold.co/640x420/171923/1abc9c?text=M4A1-S+Player+Two",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=M4A1-S+Player+Two",
         "description": "O‘yinchi ikki uslubi. Demo listing.",
     },
     {
@@ -244,7 +244,7 @@ SAMPLE_SKINS: list[dict[str, Any]] = [
         "condition": "Minimal Wear",
         "price": 38.90,
         "stock": 4,
-        "image": "https://placehold.co/640x420/171923/8e44ad?text=AWP+Neo-Noir",
+        "image": "https://placehold.co/640x420/080808/ffffff?text=AWP+Neo-Noir",
         "description": "Badiiy neo-noir AWP. Demo listing.",
     },
 ]
