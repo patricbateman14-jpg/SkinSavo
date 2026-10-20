@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#07080c">
+  <meta name="description" content="SkinSavo — CS2 skinlar katalogi. Demo Telegram Mini App.">
+  <title>SkinSavo — CS2 Skins</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="SkinSavo bosh sahifa">
+        <span class="brand-mark">S</span>
+        <span>
+          Skin<span class="accent">Savo</span>
+          <small>CS2 SKIN MARKET</small>
+        </span>
+      </a>
+      <div class="header-actions">
+        <button class="icon-btn" id="themeBtn" aria-label="Mavzuni almashtirish" title="Light / Dark">☾</button>
+        <button class="icon-btn" id="profileBtn" aria-label="Profil">👤</button>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow"><i></i> SKINLAR OLAMI</span>
+        <h1>Inventaringni<br><span>yangila.</span></h1>
+        <p>Sevimli CS2 skinlaringni top va kolleksiyangni boyit. Demo rejimda sinab ko‘r.</p>
+        <button class="primary-btn" id="browseBtn">Katalogni ko‘r <span>↘</span></button>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <img src="https://placehold.co/420x280/0f1118/ef4444?text=CS2+SKINS&font=roboto" alt="" width="420" height="280">
+      </div>
+    </section>
+
+    <section class="balance-card" aria-label="Balans">
+      <div class="balance-left">
+        <div class="balance-icon" aria-hidden="true">◈</div>
+        <div>
+          <span class="muted-label">Sizning demo balansingiz</span>
+          <div class="balance-value" id="balanceValue">250.00 <small>USD</small></div>
+        </div>
+      </div>
+      <button class="topup-btn" id="topupBtn"><span>+</span> To‘ldirish</button>
+    </section>
+
+    <main id="catalog">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow" style="margin-bottom:4px">KOLLEKSIYA</span>
+          <h2>Skinlar katalogi <span class="count" id="skinCount">—</span></h2>
+        </div>
+        <button class="filter-btn" id="sortBtn" aria-label="Saralash">↕ <span id="sortLabel">Tavsiya</span></button>
+      </div>
+
+      <label class="search-box" for="searchInput">
+        <span aria-hidden="true">⌕</span>
+        <input id="searchInput" type="search" placeholder="Skin, qurol yoki rarity qidirish..." autocomplete="off" enterkeyhint="search">
+        <kbd>⌘K</kbd>
+      </label>
+
+      <div class="chips" id="chips" role="tablist">
+        <button class="chip active" data-query="" role="tab">Barchasi</button>
+        <button class="chip" data-query="AK-47" role="tab">AK-47</button>
+        <button class="chip" data-query="AWP" role="tab">AWP</button>
+        <button class="chip" data-query="Knife" role="tab">Pichoq</button>
+        <button class="chip" data-query="Covert" role="tab">Covert</button>
+        <button class="chip" data-query="Classified" role="tab">Classified</button>
+        <button class="chip" data-query="Factory New" role="tab">FN</button>
+      </div>
+
+      <div class="skin-grid" id="skinGrid" aria-live="polite">
+        <div class="skeleton-grid">
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+      </div>
+
+      <div class="demo-note">
+        ⓘ Demo katalog. Narxlar va qoldiq haqiqiy bozor taklifi emas. Haqiqiy to‘lovlar va skin transferi mavjud emas.
+      </div>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Asosiy navigatsiya">
+      <button class="nav-item active" data-page="home" id="navHome"><span>⌂</span>Bosh sahifa</button>
+      <button class="nav-item" id="inventoryBtn"><span>▤</span>Inventar</button>
+      <button class="nav-item" id="historyBtn"><span>◷</span>Tarix</button>
+      <button class="nav-item" id="accountBtn"><span>👤</span>Profil</button>
+    </nav>
+  </div>
+
+  <div class="modal-backdrop hidden" id="modalBackdrop" role="presentation">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <button class="modal-close" id="modalClose" aria-label="Yopish">×</button>
+      <div id="modalContent"></div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
