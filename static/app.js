@@ -183,7 +183,7 @@
 
   async function loadBrandSkinGallery() {
     try {
-      const response = await fetch("https://bymykel.github.io/CSGO-API/api/en/skins.json", { cache: "force-cache" });
+      const response = await fetch("https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json", { cache: "force-cache" });
       if (!response.ok) throw new Error("Skin images unavailable");
       const items = await response.json();
       renderBrandSkinGallery(items);
