@@ -102,7 +102,7 @@
     const saved = localStorage.getItem("skinsavo_theme");
     if (saved === "light") {
       document.documentElement.setAttribute("data-theme", "light");
-      $("themeBtn").textContent = "☀";
+      $("themeBtn").innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>';
     }
   }
 
@@ -111,7 +111,7 @@
     if (isLight) {
       document.documentElement.removeAttribute("data-theme");
       localStorage.setItem("skinsavo_theme", "dark");
-      $("themeBtn").textContent = "☾";
+      $("themeBtn").innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/></svg>';
       try {
         tg?.setHeaderColor("#050505");
         tg?.setBackgroundColor("#050505");
@@ -119,7 +119,7 @@
     } else {
       document.documentElement.setAttribute("data-theme", "light");
       localStorage.setItem("skinsavo_theme", "light");
-      $("themeBtn").textContent = "☀";
+      $("themeBtn").innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>';
       try {
         tg?.setHeaderColor("#f5f6f8");
         tg?.setBackgroundColor("#f5f6f8");
@@ -252,7 +252,7 @@
       .map((s, i) => {
         const rarityCls = RARITY_CLASS[s.rarity] || "";
         const stockCls = s.stock > 0 ? "" : "out";
-        const stockText = s.stock > 0 ? `● ${s.stock} ta` : "Tugagan";
+        const stockText = s.stock > 0 ? `<svg class="icon stock-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></svg> ${s.stock} ta` : "Tugagan";
         return `
         <article class="skin-card" style="animation-delay:${Math.min(i * 40, 320)}ms">
           <div class="skin-image">
@@ -270,7 +270,7 @@
             <div class="skin-meta">${escapeHtml(s.condition)} · ${escapeHtml(s.weapon)}</div>
             <div class="skin-bottom">
               <div class="price">$${money(s.price)}</div>
-              <button class="view-btn" data-skin="${s.id}">Ko‘rish ↗</button>
+              <button class="view-btn" data-skin="${s.id}">Ko‘rish <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></button>
             </div>
           </div>
         </article>`;
@@ -377,7 +377,7 @@
       }
       const btn = $("confirmTopup");
       btn.disabled = true;
-      btn.textContent = "Kutilmoqda…";
+      btn.textContent = "Kutilmoqda...";
       try {
         const u = await api("/api/demo/topup", {
           method: "POST",
@@ -386,7 +386,7 @@
         state.balance = u.balance;
         renderBalance();
         closeModal();
-        toast("Demo balans muvaffaqiyatli qo‘shildi ✓");
+        toast("Demo balans muvaffaqiyatli qo‘shildi");
         try {
           tg?.HapticFeedback?.notificationOccurred("success");
         } catch (_) {}
