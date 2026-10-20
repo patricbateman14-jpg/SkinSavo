@@ -5,8 +5,8 @@
   tg?.ready();
   tg?.expand();
   try {
-    tg?.setHeaderColor("#07080c");
-    tg?.setBackgroundColor("#07080c");
+    tg?.setHeaderColor("#050505");
+    tg?.setBackgroundColor("#050505");
   } catch (_) {}
 
   const $ = (id) => document.getElementById(id);
@@ -113,8 +113,8 @@
       localStorage.setItem("skinsavo_theme", "dark");
       $("themeBtn").textContent = "☾";
       try {
-        tg?.setHeaderColor("#07080c");
-        tg?.setBackgroundColor("#07080c");
+        tg?.setHeaderColor("#050505");
+        tg?.setBackgroundColor("#050505");
       } catch (_) {}
     } else {
       document.documentElement.setAttribute("data-theme", "light");
@@ -202,7 +202,7 @@
               src="${escapeHtml(s.image)}"
               alt="${escapeHtml(s.name)}"
               loading="lazy"
-              onerror="this.src='https://placehold.co/640x420/12151f/ef4444?text=CS2+Skin'"
+              onerror="this.src='https://placehold.co/640x420/080808/ffffff?text=CS2+SKIN'"
             >
             <span class="skin-badge ${rarityCls}">${escapeHtml(s.rarity)}</span>
             <span class="stock-badge ${stockCls}">${stockText}</span>
@@ -253,7 +253,7 @@
       <span class="eyebrow ${rarityCls}">${escapeHtml(s.rarity)} · CS2 SKIN</span>
       <h2 id="modalTitle">${escapeHtml(s.name)}</h2>
       <img class="modal-skin-image" src="${escapeHtml(s.image)}" alt="${escapeHtml(s.name)}"
-           onerror="this.src='https://placehold.co/640x420/12151f/ef4444?text=CS2+Skin'">
+           onerror="this.src='https://placehold.co/640x420/080808/ffffff?text=CS2+SKIN'">
       <p>${escapeHtml(s.description || "Demo skin tavsifi.")}</p>
       <div class="history-row"><span>Holati</span><strong>${escapeHtml(s.condition)}</strong></div>
       <div class="history-row"><span>Qurol</span><strong>${escapeHtml(s.weapon)}</strong></div>
