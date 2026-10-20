@@ -21,8 +21,8 @@
         </span>
       </a>
       <div class="header-actions">
-        <button class="icon-btn" id="themeBtn" aria-label="Mavzuni almashtirish" title="Light / Dark">☾</button>
-        <button class="icon-btn" id="profileBtn" aria-label="Profil">👤</button>
+        <button class="icon-btn" id="themeBtn" aria-label="Mavzuni almashtirish" title="Light / Dark"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/></svg></button>
+        <button class="icon-btn" id="profileBtn" aria-label="Profil"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.5-3.6 3.1-5.5 7-5.5s6.5 1.9 7 5.5"/></svg></button>
       </div>
     </header>
 
@@ -31,7 +31,7 @@
         <span class="eyebrow"><i></i> SKINLAR OLAMI</span>
         <h1>Inventaringni<br><span>yangila.</span></h1>
         <p>Sevimli CS2 skinlaringni top va kolleksiyangni boyit. Demo rejimda sinab ko‘r.</p>
-        <button class="primary-btn" id="browseBtn">Katalogni ko‘r <span>↘</span></button>
+        <button class="primary-btn" id="browseBtn">Katalogni ko‘r <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M8 17h9V8"/></svg></button>
       </div>
       <div class="hero-art" aria-hidden="true">
         <img src="https://placehold.co/900x500/080808/ffffff?text=SKINSAVO" alt="" width="420" height="280">
@@ -40,13 +40,13 @@
 
     <section class="balance-card" aria-label="Balans">
       <div class="balance-left">
-        <div class="balance-icon" aria-hidden="true">◈</div>
+        <div class="balance-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg></div>
         <div>
           <span class="muted-label">Sizning demo balansingiz</span>
           <div class="balance-value" id="balanceValue">250.00 <small>USD</small></div>
         </div>
       </div>
-      <button class="topup-btn" id="topupBtn"><span>+</span> To‘ldirish</button>
+      <button class="topup-btn" id="topupBtn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> To‘ldirish</button>
     </section>
 
     <main id="catalog">
@@ -55,13 +55,13 @@
           <span class="eyebrow" style="margin-bottom:4px">KOLLEKSIYA</span>
           <h2>Skinlar katalogi <span class="count" id="skinCount">—</span></h2>
         </div>
-        <button class="filter-btn" id="sortBtn" aria-label="Saralash">↕ <span id="sortLabel">Tavsiya</span></button>
+        <button class="filter-btn" id="sortBtn" aria-label="Saralash"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16M4 8l4-4 4 4M16 20V4m-4 12 4 4 4-4"/></svg><span id="sortLabel">Tavsiya</span></button>
       </div>
 
       <label class="search-box" for="searchInput">
-        <span aria-hidden="true">⌕</span>
+        <svg class="icon search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg>
         <input id="searchInput" type="search" placeholder="Skin, qurol yoki rarity qidirish..." autocomplete="off" enterkeyhint="search">
-        <kbd>⌘K</kbd>
+        <kbd>Ctrl K</kbd>
       </label>
 
       <div class="chips" id="chips" role="tablist">
@@ -84,15 +84,15 @@
       </div>
 
       <div class="demo-note">
-        ⓘ Demo katalog. Narxlar va qoldiq haqiqiy bozor taklifi emas. Haqiqiy to‘lovlar va skin transferi mavjud emas.
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7h.01"/></svg> Demo katalog. Narxlar va qoldiq haqiqiy bozor taklifi emas. Haqiqiy to‘lovlar va skin transferi mavjud emas.
       </div>
     </main>
 
     <nav class="bottom-nav" aria-label="Asosiy navigatsiya">
-      <button class="nav-item active" data-page="home" id="navHome"><span>⌂</span>Bosh sahifa</button>
-      <button class="nav-item" id="inventoryBtn"><span>▤</span>Inventar</button>
-      <button class="nav-item" id="historyBtn"><span>◷</span>Tarix</button>
-      <button class="nav-item" id="accountBtn"><span>👤</span>Profil</button>
+      <button class="nav-item active" data-page="home" id="navHome"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>Bosh sahifa</button>
+      <button class="nav-item" id="inventoryBtn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Inventar</button>
+      <button class="nav-item" id="historyBtn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Tarix</button>
+      <button class="nav-item" id="accountBtn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.5-3.6 3.1-5.5 7-5.5s6.5 1.9 7 5.5"/></svg>Profil</button>
     </nav>
   </div>
 
