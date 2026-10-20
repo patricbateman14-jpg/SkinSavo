@@ -87,7 +87,11 @@
 
   async function api(path, options = {}) {
     const r = await fetch(path, {
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Telegram-Init-Data": tg?.initData || "",
+        ...(options.headers || {}),
+      },
       ...options,
     });
     if (!r.ok) {
