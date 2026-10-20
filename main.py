@@ -387,12 +387,45 @@ def require_admin(init_data: str) -> dict[str, Any]:
         raise HTTPException(status_code=403, detail="Bu amal faqat administrator uchun")
     return user
 
+@app.get("/api/session")
+def session_info(x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    if not x_telegram_init_data:
+        return {"authenticated": False, "is_admin": False}
+    user = telegram_user_from_init_data(x_telegram_init_data)
+    return {"authenticated": True, "telegram_id": str(user["id"]), "username": user.get("username", ""),
+            "is_admin": bool(ADMIN_TELEGRAM_ID and str(user["id"]) == ADMIN_TELEGRAM_ID)}
+
+
+@app.post("/api/admin/skins")
+def admin_create_skin(payload: SkinCreate, x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    require_admin(x_telegram_init_data)
+    image = payload.image.strip()
+    if not image.startswith(("https://", "http://")):
+        raise HTTPException(status_code=422, detail="Rasm havolasi http:// yoki https:// bilan boshlanishi kerak")
+    with db() as conn:
+        cur = conn.execute(
+            "INSERT INTO skins (name, weapon, skin, rarity, condition, price, stock, image, description, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+            (payload.name.strip(), payload.weapon.strip(), payload.skin.strip(), payload.rarity.strip(), payload.condition.strip(), payload.price, payload.stock, image, payload.description.strip()),
+        )
+        row = conn.execute("SELECT * FROM skins WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return {"item": dict(row), "ok": True}
+
+
+@app.delete("/api/admin/skins/{skin_id}")
+def admin_delete_skin(skin_id: int, x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    require_admin(x_telegram_init_data)
+    with db() as conn:
+        cur = conn.execute("DELETE FROM skins WHERE id = ?", (skin_id,))
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Skin topilmadi")
+    return {"ok": True, "deleted_id": skin_id}
+
 @app.get("/api/health")
 def health():
     return {
         "ok": True,
         "mode": "demo",
-        "catalog_source": "sample_data",
+        "catalog_source": "admin_managed",
         "version": "0.2.0",
     }
 
