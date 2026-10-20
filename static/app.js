@@ -155,15 +155,23 @@
   function renderBrandSkinGallery(items) {
     const strip = $("brandSkinStrip");
     if (!strip || !Array.isArray(items)) return;
+    const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
     const chosen = FEATURED_BRAND_SKINS.map((featured) => {
+      const wanted = normalize(featured.match);
       const found = items.find((item) =>
-        String(item.name || "").toLowerCase().includes(featured.match.toLowerCase()) && item.image
+        normalize(item.name).includes(wanted) && item.image
       );
       return found ? { ...featured, image: found.image } : null;
     }).filter(Boolean);
-    if (!chosen.length) return;
+    // If API naming differs, still show real skin artwork rather than leave the header blank.
+    const finalItems = chosen.length >= 2 ? chosen : items
+      .filter((item) => item && item.image && item.name)
+      .filter((item) => /dragon lore|gungnir|howl|wild lotus/i.test(item.name))
+      .slice(0, 4)
+      .map((item) => ({ label: item.name, match: item.name, image: item.image }));
+    if (!finalItems.length) return;
     strip.replaceChildren();
-    chosen.forEach((skin) => {
+    finalItems.forEach((skin) => {
       const link = document.createElement("a");
       link.className = "brand-skin-thumb";
       link.href = "https://steamcommunity.com/market/search?appid=730&q=" + encodeURIComponent(skin.match);
@@ -183,7 +191,7 @@
 
   async function loadBrandSkinGallery() {
     try {
-      const response = await fetch("https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json", { cache: "force-cache" });
+      const response = await fetch("https://bymykel.github.io/CSGO-API/api/en/skins.json", { cache: "force-cache" });
       if (!response.ok) throw new Error("Skin images unavailable");
       const items = await response.json();
       renderBrandSkinGallery(items);
