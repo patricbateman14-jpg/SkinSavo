@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
+import json
 import os
 import sqlite3
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
 from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup, WebAppInfo
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -24,6 +29,7 @@ DB_PATH = os.getenv("DATABASE_PATH", str(BASE_DIR / "skinsavo.db"))
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 WEBAPP_URL = os.getenv("WEBAPP_URL", "").strip()
 START_BALANCE = float(os.getenv("DEMO_START_BALANCE", "250.00"))
+ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID", "").strip()
 
 # Expanded demo catalog — realistic CS2-style names & prices (demo only)
 SAMPLE_SKINS: list[dict[str, Any]] = [
@@ -334,6 +340,18 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 class DemoTopUp(BaseModel):
     telegram_id: str = Field(min_length=1, max_length=80)
     amount: float = Field(gt=0, le=10000)
+
+
+class SkinCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=160)
+    weapon: str = Field(min_length=1, max_length=80)
+    skin: str = Field(min_length=1, max_length=100)
+    rarity: str = Field(min_length=1, max_length=50)
+    condition: str = Field(min_length=1, max_length=50)
+    price: float = Field(ge=0, le=100000000)
+    stock: int = Field(ge=0, le=1000000)
+    image: str = Field(min_length=8, max_length=2000)
+    description: str = Field(default="", max_length=2000)
 
 
 @app.get("/")
