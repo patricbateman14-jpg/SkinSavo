@@ -218,6 +218,8 @@
       .slice(0, 4)
       .map((item) => ({ label: item.name, match: item.name, image: item.image }));
     if (!finalItems.length) return;
+    const heroImage = $("heroSkinImage");
+    if (heroImage && finalItems[0]?.image) heroImage.src = finalItems[0].image;
     strip.replaceChildren();
     finalItems.forEach((skin) => {
       const link = document.createElement("a");
@@ -561,6 +563,21 @@
         x.classList.toggle("active", x === b)
       );
       loadSkins();
+    });
+  });
+
+  document.querySelectorAll(".market-nav-link").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.query = button.dataset.query || "";
+      $("searchInput").value = state.query;
+      document.querySelectorAll(".market-nav-link").forEach((item) =>
+        item.classList.toggle("active", item === button)
+      );
+      $("chips").querySelectorAll(".chip").forEach((item) =>
+        item.classList.toggle("active", item.dataset.query === state.query)
+      );
+      loadSkins();
+      $("catalog").scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
 
