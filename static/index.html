@@ -11,31 +11,41 @@
 </head>
 <body>
   <div class="app-shell">
-    <header class="topbar">
+    <header class="topbar marketplace-header">
       <a class="brand brand-skins" href="#" aria-label="SkinSavo bosh sahifa">
-        <span class="brand-skin-strip" id="brandSkinStrip" aria-label="Noyob va qimmat CS2 skinlari">
-          <span class="brand-skin-loading"></span>
-          <span class="brand-skin-loading"></span>
-          <span class="brand-skin-loading"></span>
-          <span class="brand-skin-loading"></span>
+        <span class="brand-skin-strip" id="brandSkinStrip" aria-label="CS2 skinlari">
+          <span class="brand-skin-loading"></span><span class="brand-skin-loading"></span><span class="brand-skin-loading"></span><span class="brand-skin-loading"></span>
         </span>
       </a>
+      <label class="search-box header-search" for="searchInput">
+        <svg class="icon search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg>
+        <input id="searchInput" type="search" placeholder="CS2 skinlarini qidirish..." autocomplete="off" enterkeyhint="search">
+        <kbd>Ctrl K</kbd>
+      </label>
       <div class="header-actions">
         <button class="icon-btn" id="themeBtn" aria-label="Mavzuni almashtirish" title="Light / Dark"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/></svg></button>
         <button class="icon-btn" id="profileBtn" aria-label="Profil"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.5-3.6 3.1-5.5 7-5.5s6.5 1.9 7 5.5"/></svg></button>
       </div>
     </header>
+    <nav class="market-nav" aria-label="Skin kategoriyalari">
+      <button class="market-nav-link active" data-query="">Barchasi</button>
+      <button class="market-nav-link" data-query="Knife">Pichoqlar</button>
+      <button class="market-nav-link" data-query="AWP">Snayper miltiqlari</button>
+      <button class="market-nav-link" data-query="AK-47">AK-47</button>
+      <button class="market-nav-link" data-query="M4A4">M4A4</button>
+      <button class="market-nav-link" data-query="Gloves">Qo‘lqoplar</button>
+      <button class="market-nav-link" data-query="Covert">Noyob skinlar</button>
+    </nav>
 
-    <section class="hero">
+    <section class="hero marketplace-hero">
       <div class="hero-copy">
-        <span class="eyebrow"><i></i> SKINLAR OLAMI</span>
-        <h1>Inventaringni<br><span>yangila.</span></h1>
-        <p>Sevimli CS2 skinlaringni top va kolleksiyangni boyit. Demo rejimda sinab ko‘r.</p>
+        <span class="eyebrow"><i></i> SKINSAVO MARKET</span>
+        <h1>Sevimli skinlaringni<br><span>bir joydan top.</span></h1>
+        <p>CS2 skinlari, pichoqlar va qo‘lqoplar. Qidir, solishtir va kolleksiyangga keraklisini tanla.</p>
         <button class="primary-btn" id="browseBtn">Katalogni ko‘r <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M8 17h9V8"/></svg></button>
       </div>
-      <div class="hero-art" aria-hidden="true">
-        <img src="https://placehold.co/900x500/080808/ffffff?text=SKINSAVO" alt="" width="420" height="280">
-      </div>
+      <div class="hero-art" aria-hidden="true"><img id="heroSkinImage" src="" alt="" width="560" height="360"></div>
+      <div class="hero-stats"><span><strong>CS2</strong><small>skin katalogi</small></span><span><strong>24/7</strong><small>katalogga kirish</small></span><span><strong>Demo</strong><small>sinov xaridi</small></span></div>
     </section>
 
     <section class="balance-card" aria-label="Balans">
@@ -58,20 +68,14 @@
         <button class="filter-btn" id="sortBtn" aria-label="Saralash"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16M4 8l4-4 4 4M16 20V4m-4 12 4 4 4-4"/></svg><span id="sortLabel">Tavsiya</span></button>
       </div>
 
-      <label class="search-box" for="searchInput">
-        <svg class="icon search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg>
-        <input id="searchInput" type="search" placeholder="Skin, qurol yoki rarity qidirish..." autocomplete="off" enterkeyhint="search">
-        <kbd>Ctrl K</kbd>
-      </label>
-
-      <div class="chips" id="chips" role="tablist">
+      <div class="chips" id="chips" role="tablist" aria-label="Tezkor filtrlar">
         <button class="chip active" data-query="" role="tab">Barchasi</button>
         <button class="chip" data-query="AK-47" role="tab">AK-47</button>
         <button class="chip" data-query="AWP" role="tab">AWP</button>
-        <button class="chip" data-query="Knife" role="tab">Pichoq</button>
+        <button class="chip" data-query="Knife" role="tab">Pichoqlar</button>
         <button class="chip" data-query="Covert" role="tab">Covert</button>
-        <button class="chip" data-query="Classified" role="tab">Classified</button>
-        <button class="chip" data-query="Factory New" role="tab">FN</button>
+        <button class="chip" data-query="Gloves" role="tab">Qo‘lqoplar</button>
+        <button class="chip" data-query="Factory New" role="tab">Factory New</button>
       </div>
 
       <div class="skin-grid" id="skinGrid" aria-live="polite">
