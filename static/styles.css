@@ -1016,3 +1016,20 @@ a { color: inherit; text-decoration: none; }
 .brand-skin-thumb::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,rgba(0,0,0,.18));pointer-events:none}
 .brand-skin-loading{display:block;flex:1;height:43px;border-radius:9px;border:1px solid var(--border);background:linear-gradient(100deg,var(--panel) 20%,var(--panel-2) 50%,var(--panel) 80%);background-size:200% 100%;animation:shimmer 1.4s infinite}
 @media(max-width:420px){.brand-skins,.brand-skin-strip{width:176px}.brand-skin-thumb,.brand-skin-loading{height:38px}.brand-skin-strip{gap:4px}}
+
+
+/* Consistent monochrome SVG icon system — no emoji UI */
+.icon{display:inline-block;width:18px;height:18px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}
+.icon.search-icon{width:20px;height:20px}
+.icon.stock-icon{width:12px;height:12px;stroke:none;vertical-align:-1px}
+.icon-btn .icon{width:19px;height:19px}
+.primary-btn .icon{width:16px;height:16px}
+.topup-btn .icon{width:16px;height:16px}
+.filter-btn .icon{width:16px;height:16px}
+.view-btn{display:inline-flex;align-items:center;gap:4px}
+.view-btn .icon{width:13px;height:13px}
+.nav-item{gap:5px}
+.nav-item .icon{width:19px;height:19px}
+.demo-note{display:flex;align-items:center;justify-content:center;gap:8px}
+.demo-note .icon{width:15px;height:15px;flex-shrink:0}
+.brand-skins{flex-shrink:0}
