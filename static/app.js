@@ -144,6 +144,55 @@
     $("balanceValue").innerHTML = `${money(state.balance)} <small>USD</small>`;
   }
 
+  // ---------- Header skin gallery ----------
+  const FEATURED_BRAND_SKINS = [
+    { match: "AWP | Gungnir", label: "AWP Gungnir" },
+    { match: "AWP | Dragon Lore", label: "AWP Dragon Lore" },
+    { match: "M4A4 | Howl", label: "M4A4 Howl" },
+    { match: "AK-47 | Wild Lotus", label: "AK-47 Wild Lotus" },
+  ];
+
+  function renderBrandSkinGallery(items) {
+    const strip = $("brandSkinStrip");
+    if (!strip || !Array.isArray(items)) return;
+    const chosen = FEATURED_BRAND_SKINS.map((featured) => {
+      const found = items.find((item) =>
+        String(item.name || "").toLowerCase().includes(featured.match.toLowerCase()) && item.image
+      );
+      return found ? { ...featured, image: found.image } : null;
+    }).filter(Boolean);
+    if (!chosen.length) return;
+    strip.replaceChildren();
+    chosen.forEach((skin) => {
+      const link = document.createElement("a");
+      link.className = "brand-skin-thumb";
+      link.href = "https://steamcommunity.com/market/search?appid=730&q=" + encodeURIComponent(skin.match);
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.title = skin.label;
+      link.setAttribute("aria-label", skin.label + " — Steam Market");
+      const img = document.createElement("img");
+      img.src = skin.image;
+      img.alt = skin.label;
+      img.loading = "eager";
+      img.onerror = () => link.remove();
+      link.appendChild(img);
+      strip.appendChild(link);
+    });
+  }
+
+  async function loadBrandSkinGallery() {
+    try {
+      const response = await fetch("https://bymykel.github.io/CSGO-API/api/en/skins.json", { cache: "force-cache" });
+      if (!response.ok) throw new Error("Skin images unavailable");
+      const items = await response.json();
+      renderBrandSkinGallery(items);
+    } catch (_) {
+      // Fall back to matching skins already loaded from the site's own catalogue.
+      renderBrandSkinGallery(state.skins);
+    }
+  }
+
   // ---------- Skins ----------
   function showSkeleton() {
     $("skinGrid").innerHTML = `
@@ -167,6 +216,7 @@
       state.skins = data.items || [];
       $("skinCount").textContent = data.total ?? state.skins.length;
       renderSkins();
+      if ($("brandSkinStrip")?.querySelector(".brand-skin-loading")) renderBrandSkinGallery(state.skins);
     } catch (e) {
       $("skinGrid").innerHTML = `
         <div class="empty">
@@ -469,5 +519,6 @@
   // ---------- Init ----------
   initTheme();
   loadUser();
+  loadBrandSkinGallery();
   loadSkins();
 })();
