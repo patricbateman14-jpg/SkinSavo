@@ -359,6 +359,34 @@ def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+def telegram_user_from_init_data(init_data: str) -> dict[str, Any]:
+    if not BOT_TOKEN or not init_data:
+        raise HTTPException(status_code=401, detail="Telegram Mini App orqali kiring")
+    try:
+        data = dict(parse_qsl(init_data, keep_blank_values=True, strict_parsing=True))
+        received_hash = data.pop("hash", "")
+        auth_date = int(data.get("auth_date", "0"))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Telegram sessiyasi noto‘g‘ri")
+    if not received_hash or abs(int(time.time()) - auth_date) > 86400:
+        raise HTTPException(status_code=401, detail="Telegram sessiyasi eskirgan")
+    check_string = "\n".join(f"{key}={value}" for key, value in sorted(data.items()))
+    secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
+    expected_hash = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected_hash, received_hash):
+        raise HTTPException(status_code=401, detail="Telegram imzosi tekshiruvdan o‘tmadi")
+    user = json.loads(data.get("user", "{}"))
+    if not user.get("id"):
+        raise HTTPException(status_code=401, detail="Telegram foydalanuvchisi aniqlanmadi")
+    return user
+
+
+def require_admin(init_data: str) -> dict[str, Any]:
+    user = telegram_user_from_init_data(init_data)
+    if not ADMIN_TELEGRAM_ID or str(user.get("id")) != ADMIN_TELEGRAM_ID:
+        raise HTTPException(status_code=403, detail="Bu amal faqat administrator uchun")
+    return user
+
 @app.get("/api/health")
 def health():
     return {
