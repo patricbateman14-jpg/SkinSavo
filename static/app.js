@@ -101,6 +101,50 @@
     return r.json();
   }
 
+  // ---------- Admin panel ----------
+  async function initAdminAccess() {
+    try {
+      const session = await api("/api/session");
+      if (!session.is_admin) return;
+      const actions = $(".header-actions");
+      if (!actions || $("adminPanelBtn")) return;
+      const button = document.createElement("button");
+      button.id = "adminPanelBtn";
+      button.className = "icon-btn";
+      button.type = "button";
+      button.title = "Admin panel";
+      button.setAttribute("aria-label", "Admin panel");
+      button.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 7v5c0 4.5 3.2 7.5 8 9 4.8-1.5 8-4.5 8-9V7z"/><path d="m9 12 2 2 4-4"/></svg>';
+      button.addEventListener("click", openAdminPanel);
+      actions.prepend(button);
+    } catch (_) {}
+  }
+
+  function openAdminPanel() {
+    openModal("");
+    $("modalContent").replaceChildren($("adminPanelTemplate").content.cloneNode(true));
+    $("adminSkinForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = $("adminSaveSkin");
+      const payload = Object.fromEntries(new FormData(form).entries());
+      payload.price = Number(payload.price);
+      payload.stock = Number(payload.stock);
+      button.disabled = true;
+      button.textContent = "Saqlanmoqda...";
+      try {
+        await api("/api/admin/skins", { method: "POST", body: JSON.stringify(payload) });
+        closeModal();
+        toast("Skin katalogga joylandi");
+        await loadSkins();
+      } catch (error) {
+        toast(error.message);
+        button.disabled = false;
+        button.textContent = "Skinni joylash";
+      }
+    });
+  }
+
   // ---------- Theme ----------
   function initTheme() {
     const saved = localStorage.getItem("skinsavo_theme");
@@ -530,6 +574,7 @@
 
   // ---------- Init ----------
   initTheme();
+  initAdminAccess();
   loadUser();
   loadBrandSkinGallery();
   loadSkins();
