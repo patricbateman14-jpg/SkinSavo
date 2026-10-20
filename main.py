@@ -299,29 +299,8 @@ def init_db() -> None:
             )
             """
         )
-        count = conn.execute("SELECT COUNT(*) FROM skins").fetchone()[0]
-        if count == 0:
-            conn.executemany(
-                """
-                INSERT INTO skins
-                (name, weapon, skin, rarity, condition, price, stock, image, description)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    (
-                        s["name"],
-                        s["weapon"],
-                        s["skin"],
-                        s["rarity"],
-                        s["condition"],
-                        s["price"],
-                        s["stock"],
-                        s["image"],
-                        s["description"],
-                    )
-                    for s in SAMPLE_SKINS
-                ],
-            )
+        # Remove old seeded placeholder listings; preserve future admin-added skins.
+        conn.execute("DELETE FROM skins WHERE image LIKE 'https://placehold.co/%' AND description LIKE '%Demo listing%'")
 
 
 def user_payload(telegram_id: str, username: str = "") -> dict[str, Any]:
