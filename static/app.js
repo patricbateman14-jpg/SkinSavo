@@ -58,6 +58,12 @@
       const raw = new URLSearchParams(source).get("tgWebAppData");
       if (raw?.trim()) return raw;
     }
+    try {
+      const stored = JSON.parse(
+        sessionStorage.getItem("__telegram__initParams") || "{}",
+      );
+      if (typeof stored.tgWebAppData === "string") return stored.tgWebAppData;
+    } catch {}
     return "";
   }
   try {
@@ -215,7 +221,7 @@
       rarity: state.rarity.join(","),
       condition: state.condition.join(","),
       sort: state.sort,
-      limit: "100",
+      limit: normalizedPath() === "/" ? "10" : "100",
       offset: String(state.offset),
     });
     try {
@@ -224,9 +230,12 @@
       });
       if (id !== requestId) return;
       state.items = append ? [...state.items, ...data.items] : data.items;
+      state.catalogCounts = data.categories;
+      state.catalogTotal = data.catalog_total;
       renderCategories(data.categories, data.catalog_total);
       $("skinCount").textContent = `(${data.total})`;
       $("availableStat").textContent = data.catalog_total;
+      $("footerCatalogCount").hidden = false;
       $("activeFilters").textContent = [
         state.q && `Qidiruv: ${state.q}`,
         state.category,
@@ -239,11 +248,12 @@
         ? state.items
             .map(
               (s) =>
-                `<article class="skin-card"><div class="skin-image"><span class="skin-badge">${esc(s.rarity)}</span><span class="stock-badge">${s.stock > 0 ? esc(s.stock) + " dona" : "Tugagan"}</span><img src="${esc(imageUrl(s))}" alt="${esc(s.name)}" loading="lazy" width="240" height="160"></div><div class="skin-info"><h3>${esc(s.name)}</h3><p class="skin-meta">${esc(s.condition)}</p><div class="skin-bottom"><strong class="price">${money(s.price)}</strong><button class="view-btn" data-detail="${s.id}" aria-label="${esc(s.name)} — ko‘rish">Ko‘rish ↗</button></div></div></article>`,
+                `<article class="skin-card"><div class="skin-image"><span class="skin-badge">${esc(s.rarity)}</span><span class="stock-badge">${s.stock > 0 ? esc(s.stock) + " dona" : "Tugagan"}</span><img src="${esc(imageUrl(s))}" alt="${esc(s.name)}" loading="lazy" width="240" height="160"></div><div class="skin-info"><h3>${esc(s.name)}</h3><p class="skin-meta">${esc(s.condition)}</p><div class="skin-bottom"><strong class="price">${money(s.price)}</strong><a class="view-btn" href="/skins/${s.id}" data-route aria-label="${esc(s.name)} — ko‘rish">Ko‘rish ↗</a></div></div></article>`,
             )
             .join("")
         : '<div class="empty"><strong>Skinlar topilmadi</strong>Filtrlarni o‘zgartiring yoki keyinroq qayting.<br><button class="secondary" data-action="reset">Filtrlarni tozalash</button></div>';
-      $("loadMore").hidden = state.items.length >= data.total;
+      $("loadMore").hidden =
+        normalizedPath() === "/" || state.items.length >= data.total;
       imageFallbacks($("skinGrid"));
     } catch (error) {
       if (error.name !== "AbortError" && id === requestId) {
@@ -258,29 +268,23 @@
       }
     }
   }
-  let previousFocus;
-  function modal(html) {
-    if (!$("modal").open) previousFocus = document.activeElement;
-    $("modalContent").innerHTML = html;
-    icons($("modalContent"));
-    imageFallbacks($("modalContent"));
-    if (!$("modal").open) $("modal").showModal();
-    $("modalClose").focus();
+  let routeVersion = 0;
+  let lastCatalogUrl = "/skins";
+  function renderPage(title, content, backHref = "/skins", label = "SKINSAVO") {
+    $("pageView").innerHTML =
+      `<div class="page-header"><div><span class="eyebrow">${esc(label)}</span><h1 id="pageTitle">${esc(title)}</h1></div><a class="secondary" href="${esc(backHref)}" data-route>${icon("arrow")} Orqaga</a></div><div class="page-panel"><div id="pageContent">${content}</div></div>`;
+    document.title = title + " — SkinSavo";
+    icons($("pageView"));
+    imageFallbacks($("pageView"));
   }
-  $("modalClose").onclick = () => $("modal").close();
-  $("modal").addEventListener("close", () => previousFocus?.focus());
-  $("modal").addEventListener("click", (event) => {
-    if (event.target === $("modal")) {
-      const r = $("modal").getBoundingClientRect();
-      if (
-        event.clientX < r.left ||
-        event.clientX > r.right ||
-        event.clientY < r.top ||
-        event.clientY > r.bottom
-      )
-        $("modal").close();
-    }
-  });
+  function pageError(error, version) {
+    if (version !== routeVersion || !state.session) return;
+    renderPage(
+      error.status === 404 ? "Skin topilmadi" : "Yuklab bo‘lmadi",
+      `<p>${esc(error.message)}</p><button class="secondary" data-action="retryPage">Qayta urinish</button>`,
+      lastCatalogUrl,
+    );
+  }
   function requireSession() {
     if (state.session?.authenticated) return true;
     showGate(
@@ -320,59 +324,101 @@
     );
     renderAccount(user);
   }
-  async function detail(id) {
+  async function detail(id, version = routeVersion) {
     try {
-      const s = await api("/api/skins/" + id);
-      modal(
-        `<span class="eyebrow">${esc(s.rarity)} · DEMO LISTING</span><h2 id="modalTitle">${esc(s.name)}</h2><img class="modal-image" src="${esc(imageUrl(s))}" alt="${esc(s.name)}"><p>${esc(s.condition)} · ${esc(s.stock)} dona</p><p>${esc(s.description)}</p><div class="modal-price">${money(s.price)}</div><p>Faqat demo mablag‘. Haqiqiy to‘lov va Steam transferi mavjud emas.</p><button class="full-btn" data-purchase="${s.id}" ${s.stock < 1 ? "disabled" : ""}>${s.stock > 0 ? "Demo xarid qilish" : "Qoldiq tugagan"}</button>`,
+      const item = await api("/api/skins/" + id);
+      if (version !== routeVersion) return;
+      renderPage(
+        item.name,
+        `<div class="detail-layout"><div class="detail-art"><img class="modal-image" src="${esc(imageUrl(item))}" alt="${esc(item.name)}"></div><div class="detail-copy"><span class="eyebrow">${esc(item.rarity)}</span><h2>${esc(item.skin)}</h2><div class="history-row"><span>Holati</span><strong>${esc(item.condition)}</strong></div><div class="history-row"><span>Qoldiq</span><strong>${esc(item.stock)} dona</strong></div>${item.description ? `<p>${esc(item.description)}</p>` : ""}<div class="modal-price">${money(item.price)}</div><p>Demo xarid. Haqiqiy to‘lov va Steam transferi yo‘q.</p><button class="full-btn" data-purchase="${item.id}" ${item.stock < 1 ? "disabled" : ""}>${item.stock > 0 ? "Demo xarid qilish" : "Qoldiq tugagan"}</button><div class="page-links"><a class="secondary" href="/balance/topup" data-route>Balans qo‘shish</a><a class="secondary" href="/inventory" data-route>Inventar</a></div></div></div>`,
+        lastCatalogUrl,
+        "SKIN TAFSILOTI",
       );
-    } catch (e) {
-      toast(e.message);
+    } catch (error) {
+      pageError(error, version);
     }
   }
   function topup() {
-    if (!requireSession()) return;
-    modal(
-      '<span class="eyebrow">DEMO HAMYON</span><h2 id="modalTitle">Demo balans qo‘shish</h2><p>Bu sinov mablag‘i. Haqiqiy pul olinmaydi va yechib bo‘lmaydi.</p><form id="topupForm"><label class="field-label" for="amount">Miqdor (USD)</label><input class="modal-input" id="amount" type="number" min="0.01" max="10000" step="0.01" value="25" required><button class="full-btn" type="submit">Demo balans qo‘shish</button></form>',
+    renderPage(
+      "Balans to‘ldirish",
+      '<p>Faqat sinov mablag‘i. Haqiqiy pul olinmaydi.</p><form id="topupForm"><label class="field-label" for="amount">Miqdor (USD)</label><input class="modal-input" id="amount" type="number" min="0.01" max="10000" step="0.01" value="25" required><button class="full-btn" type="submit">Demo balans qo‘shish</button></form>',
+      "/balance",
+      "DEMO HAMYON",
     );
   }
   function profile() {
-    if (!requireSession()) return;
     const user = state.session.user;
     const name =
       [user.first_name, user.last_name].filter(Boolean).join(" ") ||
       user.username ||
       "Foydalanuvchi";
-    modal(
-      `<div class="profile-avatar">${user.photo_url ? `<img src="${esc(user.photo_url)}" alt="Telegram profil rasmi" referrerpolicy="no-referrer">` : esc(Array.from(name)[0].toUpperCase())}</div><span class="eyebrow">TELEGRAM PROFIL</span><h2 id="modalTitle">${esc(name)}</h2>${user.username ? `<p>@${esc(user.username)}</p>` : ""}<p>ID: ${esc(user.telegram_id)}</p><div class="history-row"><span>Demo balans</span><strong>${money(state.balance)}</strong></div><button class="full-btn" data-action="topup">Demo balans qo‘shish</button><button class="full-btn" data-action="history">Balans tarixi</button>${state.session.is_admin ? '<button class="full-btn" data-action="admin">Administrator paneli</button>' : ""}`,
+    renderPage(
+      "Profil",
+      `<div class="profile-summary"><div class="profile-avatar">${user.photo_url ? `<img src="${esc(user.photo_url)}" alt="Telegram profil rasmi" referrerpolicy="no-referrer">` : esc(Array.from(name)[0].toUpperCase())}</div><div><h2>${esc(name)}</h2>${user.username ? `<p>@${esc(user.username)}</p>` : ""}<p>Telegram ID: ${esc(user.telegram_id)}</p></div></div><div class="history-row"><span>Demo balans</span><strong>${money(state.balance)}</strong></div><div class="page-links"><a class="secondary" href="/balance" data-route>Balans</a><a class="secondary" href="/inventory" data-route>Inventar</a><a class="secondary" href="/history" data-route>Tarix</a>${state.session.is_admin ? '<a class="secondary" href="/admin" data-route>Administrator</a>' : ""}</div>`,
+      "/",
+      "TELEGRAM HISOBI",
     );
   }
-  async function inventory() {
-    if (!requireSession()) return;
+  async function balance(version = routeVersion) {
     try {
-      const data = await api("/api/inventory");
-      modal(
-        `<span class="eyebrow">DEMO INVENTAR</span><h2 id="modalTitle">Sizning skinlaringiz</h2><p>Demo xaridlar bazada saqlanadi. Sotish demo balansni qaytaradi, haqiqiy skin jo‘natilmaydi.</p>${data.items.length ? data.items.map((i) => `<div class="inventory-row"><img src="${esc(imageUrl(i))}" alt="${esc(i.name)}"><div><strong>${esc(i.name)}</strong><p>${esc(i.condition)} · ${money(i.price)}</p></div>${i.status === "owned" ? `<button class="secondary" data-sell="${i.id}">Demo sotish</button>` : "<small>Sotilgan</small>"}</div>`).join("") : "<p>Inventar bo‘sh. Katalogdan birinchi demo skinni tanlang.</p>"}`,
+      await loadUser();
+      if (version !== routeVersion) return;
+      renderPage(
+        "Balans",
+        `<div class="wallet-summary"><span class="eyebrow">DEMO BALANS</span><strong class="wallet-amount">${money(state.balance)}</strong><p>Sinov mablag‘i. Haqiqiy pul emas.</p></div><div class="page-links"><a class="primary" href="/balance/topup" data-route>Balans to‘ldirish ${icon("plus")}</a><a class="secondary" href="/history" data-route>Balans tarixi</a></div>`,
+        "/profile",
+        "HAMYON",
       );
-    } catch (e) {
-      toast(e.message);
+    } catch (error) {
+      pageError(error, version);
     }
   }
-  async function history() {
-    if (!requireSession()) return;
+  async function inventory(version = routeVersion) {
+    try {
+      const data = await api("/api/inventory");
+      if (version !== routeVersion) return;
+      renderPage(
+        "Inventar",
+        `<p>Demo skinlaringiz.</p>${data.items.length ? data.items.map((item) => `<div class="inventory-row"><img src="${esc(imageUrl(item))}" alt="${esc(item.name)}"><div><a href="/skins/${item.skin_id}" data-route><strong>${esc(item.name)}</strong></a><p>${esc(item.condition)} · ${money(item.price)}</p></div>${item.status === "owned" ? `<button class="secondary" data-sell="${item.id}">Demo sotish</button>` : "<small>Sotilgan</small>"}</div>`).join("") : '<div class="empty"><strong>Inventar bo‘sh</strong><a class="primary" href="/skins" data-route>Skin tanlash</a></div>'}`,
+        "/profile",
+        "SIZNING SKINLARINGIZ",
+      );
+    } catch (error) {
+      pageError(error, version);
+    }
+  }
+  async function history(version = routeVersion) {
     try {
       const data = await api(
         "/api/users/" + state.session.telegram_id + "/history",
       );
-      modal(
-        `<span class="eyebrow">DEMO HISOB</span><h2 id="modalTitle">Balans tarixi</h2>${data.items.length ? data.items.map((i) => `<div class="history-row"><div>${esc(i.note || i.event_type)}<small>${esc(i.created_at)}</small></div><strong>${money(i.amount)}</strong></div>`).join("") : "<p>Hozircha tarix bo‘sh.</p>"}`,
+      if (version !== routeVersion) return;
+      renderPage(
+        "Balans tarixi",
+        data.items.length
+          ? data.items
+              .map(
+                (item) =>
+                  `<div class="history-row"><div>${esc(item.note || item.event_type)}<small>${esc(item.created_at)}</small></div><strong>${money(item.amount)}</strong></div>`,
+              )
+              .join("")
+          : "<p>Hozircha tarix bo‘sh.</p>",
+        "/balance",
+        "DEMO AMALLAR",
       );
-    } catch (e) {
-      toast(e.message);
+    } catch (error) {
+      pageError(error, version);
     }
   }
   function admin() {
-    if (!state.session?.is_admin) return;
+    if (!state.session.is_admin) {
+      renderPage(
+        "Kirish cheklangan",
+        "<p>Bu sahifa faqat administrator uchun.</p>",
+        "/profile",
+      );
+      return;
+    }
     const fields = [
       ["name", "Skin nomi", "text"],
       ["weapon", "Qurol", "text"],
@@ -384,16 +430,177 @@
       ["image", "HTTPS rasm URL", "url"],
       ["description", "Tavsif", "text"],
     ];
-    modal(
-      '<span class="eyebrow">ADMINISTRATOR</span><h2 id="modalTitle">Yangi skin joylash</h2><form id="adminForm">' +
+    renderPage(
+      "Yangi skin joylash",
+      '<form id="adminForm">' +
         fields
           .map(
             ([name, label, type]) =>
-              `<label class="field-label" for="admin-${name}">${label}</label><input class="modal-input" id="admin-${name}" name="${name}" type="${type}" ${type === "number" ? 'min="0" step="' + (name === "stock" ? "1" : "0.01") + '"' : ""} ${name === "description" ? "" : "required"}>`,
+              `<label class="field-label" for="admin-${name}">${label}</label><input class="modal-input" id="admin-${name}" name="${name}" type="${type}" ${type === "number" ? `min="0" step="${name === "stock" ? "1" : "0.01"}"` : ""} ${name === "description" ? "" : "required"}>`,
           )
           .join("") +
         '<button class="full-btn" type="submit">Skinni joylash</button></form>',
+      "/profile",
+      "ADMINISTRATOR",
     );
+  }
+  function normalizedPath() {
+    return location.pathname.replace(/\/+$/, "") || "/";
+  }
+  function syncFilterControls() {
+    $("searchInput").value = state.q;
+    $("categorySelect").value = state.category;
+    $("sortSelect").value = state.sort;
+    document
+      .querySelectorAll("[data-filter]")
+      .forEach(
+        (el) => (el.checked = state[el.dataset.filter].includes(el.value)),
+      );
+    renderCategories(state.catalogCounts || {}, state.catalogTotal);
+  }
+  function readCatalogFilters() {
+    const params =
+      normalizedPath() === "/skins"
+        ? new URLSearchParams(location.search)
+        : new URLSearchParams();
+    state.q = (params.get("q") || "").slice(0, 100);
+    state.category = categories.includes(params.get("category"))
+      ? params.get("category")
+      : "";
+    state.sort = [
+      "featured",
+      "price_asc",
+      "price_desc",
+      "name",
+      "name_desc",
+      "stock",
+    ].includes(params.get("sort"))
+      ? params.get("sort")
+      : "featured";
+    state.rarity = [...new Set((params.get("rarity") || "").split(","))].filter(
+      (value) => rarities.includes(value),
+    );
+    state.condition = [
+      ...new Set((params.get("condition") || "").split(",")),
+    ].filter((value) => conditions.includes(value));
+    syncFilterControls();
+  }
+  function catalogUrl() {
+    const params = new URLSearchParams();
+    if (state.q) params.set("q", state.q);
+    if (state.category) params.set("category", state.category);
+    if (state.sort !== "featured") params.set("sort", state.sort);
+    if (state.rarity.length) params.set("rarity", state.rarity.join(","));
+    if (state.condition.length)
+      params.set("condition", state.condition.join(","));
+    return "/skins" + (params.size ? "?" + params : "");
+  }
+  function catalogChanged() {
+    clearTimeout(searchTimer);
+    const url = catalogUrl();
+    if (normalizedPath() !== "/skins") {
+      navigate(url);
+      return;
+    }
+    window.history.replaceState(window.history.state, "", url);
+    lastCatalogUrl = url;
+    loadSkins();
+  }
+  function navigate(href, { replace = false } = {}) {
+    if (!requireSession()) return;
+    const target = new URL(href, location.origin);
+    if (target.origin !== location.origin) return;
+    const next = target.pathname + target.search;
+    if (next !== location.pathname + location.search) {
+      const depth = (window.history.state?.depth || 0) + (replace ? 0 : 1);
+      window.history[replace ? "replaceState" : "pushState"](
+        { skinsavo: true, depth },
+        "",
+        next,
+      );
+    }
+    renderRoute();
+  }
+  async function renderRoute({ focus = true } = {}) {
+    if (!state.session?.authenticated) return;
+    clearTimeout(searchTimer);
+    const version = ++routeVersion;
+    const path = normalizedPath();
+    const home = path === "/",
+      catalog = path === "/skins",
+      market = home || catalog;
+    document.body.dataset.page = home ? "home" : catalog ? "skins" : "account";
+    $("filters").classList.remove("open");
+    $("filters").removeAttribute("role");
+    $("filters").removeAttribute("aria-modal");
+    $("filters").hidden = !market;
+    document.querySelector(".layout").classList.toggle("page-layout", !market);
+    document
+      .querySelectorAll("[data-home]")
+      .forEach((el) => (el.hidden = !home));
+    $("catalog").hidden = !market;
+    $("filterForm").hidden = !catalog;
+    $("faq").hidden = path !== "/faq";
+    $("pageView").hidden = market || path === "/faq";
+    document.querySelectorAll("header nav a[data-route]").forEach((link) => {
+      const active =
+        link.getAttribute("href") === path ||
+        (link.getAttribute("href") === "/skins" && path.startsWith("/skins/"));
+      link.classList.toggle("active", active);
+      if (active) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    });
+    document.title =
+      (home
+        ? "Bosh sahifa"
+        : catalog
+          ? "Skinlar"
+          : path === "/faq"
+            ? "FAQ"
+            : "SkinSavo") + " — SkinSavo";
+    try {
+      if (path === "/") tg?.BackButton?.hide();
+      else tg?.BackButton?.show();
+    } catch {}
+    if (focus) {
+      window.scrollTo(0, 0);
+      $("mainContent").focus({ preventScroll: true });
+    }
+    if (market) {
+      readCatalogFilters();
+      $("catalogTitle").textContent = home ? "Mashhur Skins" : "Skinlar";
+      $("viewAll").hidden = !home;
+      if (catalog) lastCatalogUrl = catalogUrl();
+      await loadSkins();
+      return;
+    }
+    if (path === "/faq") return;
+    renderPage("Yuklanmoqda…", '<p role="status">Ma’lumotlar yuklanmoqda…</p>');
+    if (/^\/skins\/[1-9]\d*$/.test(path))
+      await detail(path.split("/")[2], version);
+    else if (path === "/profile") profile();
+    else if (path === "/inventory") await inventory(version);
+    else if (path === "/balance") await balance(version);
+    else if (path === "/balance/topup") topup();
+    else if (path === "/history") await history(version);
+    else if (path === "/admin") admin();
+    else
+      renderPage(
+        "Sahifa topilmadi",
+        '<p>Bu manzil mavjud emas.</p><a href="/" class="primary" data-route>Bosh sahifa</a>',
+        "/",
+      );
+  }
+  window.addEventListener("popstate", () => renderRoute());
+  let telegramBackBound;
+  function bindTelegramBack() {
+    if (!tg?.BackButton || telegramBackBound === tg.BackButton) return;
+    tg.BackButton.onClick(() => {
+      if (window.history.state?.skinsavo && window.history.state.depth > 0)
+        window.history.back();
+      else navigate("/");
+    });
+    telegramBackBound = tg.BackButton;
   }
   function reset() {
     clearTimeout(searchTimer);
@@ -410,18 +617,33 @@
     document
       .querySelectorAll("[data-filter]")
       .forEach((el) => (el.checked = false));
-    loadSkins();
+    catalogChanged();
   }
   const actions = {
-    inventory,
-    profile,
-    topup,
-    history,
-    admin,
+    inventory: () => navigate("/inventory"),
+    profile: () => navigate("/profile"),
+    topup: () => navigate("/balance/topup"),
+    history: () => navigate("/history"),
+    admin: () => navigate("/admin"),
     reset,
     retry: () => loadSkins(),
+    retryPage: () => renderRoute(),
   };
   document.addEventListener("click", async (event) => {
+    const link = event.target.closest("a[data-route]");
+    if (
+      link &&
+      event.button === 0 &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.shiftKey &&
+      !event.altKey
+    ) {
+      if (link.target === "_blank" || link.hasAttribute("download")) return;
+      event.preventDefault();
+      navigate(link.href);
+      return;
+    }
     const button = event.target.closest("button");
     if (!button) return;
     if (button.dataset.action) {
@@ -431,11 +653,11 @@
     if (button.dataset.category !== undefined) {
       state.category = button.dataset.category;
       $("categorySelect").value = state.category;
-      loadSkins();
+      catalogChanged();
       return;
     }
     if (button.dataset.detail) {
-      detail(button.dataset.detail);
+      navigate("/skins/" + button.dataset.detail);
       return;
     }
     if (button.dataset.purchase) {
@@ -447,9 +669,8 @@
           body: JSON.stringify({ skin_id: Number(button.dataset.purchase) }),
         });
         await loadUser();
-        $("modal").close();
         toast("Demo xarid saqlandi.");
-        loadSkins();
+        navigate("/inventory");
       } catch (e) {
         toast(e.message);
         button.disabled = false;
@@ -463,8 +684,8 @@
           method: "POST",
         });
         await loadUser();
-        await inventory();
-        loadSkins();
+        if (normalizedPath() === "/inventory")
+          await renderRoute({ focus: false });
         toast("Demo sotuv saqlandi");
       } catch (e) {
         toast(e.message);
@@ -487,19 +708,19 @@
           }),
         });
         await loadUser();
-        toast("Demo balans yangilandi. Haqiqiy to‘lov bo‘lmadi.");
+        toast("Demo balans yangilandi.");
+        navigate("/balance");
       } else {
         const payload = Object.fromEntries(new FormData(event.target));
         payload.price = Number(payload.price);
         payload.stock = Number(payload.stock);
-        await api("/api/admin/skins", {
+        const result = await api("/api/admin/skins", {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        loadSkins();
         toast("Skin saqlandi");
+        navigate("/skins/" + result.item.id);
       }
-      $("modal").close();
     } catch (e) {
       toast(e.message);
       button.disabled = false;
@@ -511,16 +732,16 @@
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
       state.q = $("searchInput").value.trim();
-      loadSkins();
+      catalogChanged();
     }, 250);
   };
   $("categorySelect").onchange = () => {
     state.category = $("categorySelect").value;
-    loadSkins();
+    catalogChanged();
   };
   $("sortSelect").onchange = () => {
     state.sort = $("sortSelect").value;
-    loadSkins();
+    catalogChanged();
   };
   document.querySelectorAll("[data-filter]").forEach(
     (el) =>
@@ -529,11 +750,11 @@
         state[key] = [
           ...document.querySelectorAll(`[data-filter="${key}"]:checked`),
         ].map((i) => i.value);
-        loadSkins();
+        catalogChanged();
       }),
   );
   $("resetBtn").onclick = reset;
-  $("viewAll").onclick = reset;
+  $("viewAll").onclick = () => navigate("/skins");
   $("loadMore").onclick = () => {
     state.offset = state.items.length;
     loadSkins(true);
@@ -557,6 +778,7 @@
       closeFilters();
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
       e.preventDefault();
+      if (normalizedPath() !== "/skins") navigate("/skins");
       $("searchInput").focus();
     }
     if (e.key === "Tab" && $("filters").classList.contains("open")) {
@@ -590,7 +812,6 @@
     $("gateTitle").textContent = title;
     $("gateMessage").textContent = message;
     $("authRetry").hidden = !retry;
-    if ($("modal").open) $("modal").close();
   }
   async function loadBotLink() {
     try {
@@ -617,7 +838,6 @@
       sleep(Math.max(0, 3000 - (performance.now() - startedAt)));
     document.body.dataset.auth = "pending";
     $("authRetry").hidden = true;
-    if ($("modal").open) $("modal").close();
     try {
       // Telegram launch data may arrive after our first JavaScript tick.
       // Read it again during the splash instead of treating that as a browser.
@@ -651,11 +871,32 @@
       await finishSplash();
       state.session = session;
       renderAccount(session.user);
-      document.body.dataset.auth = "ready";
       try {
-        state.manifest = await api("/static/assets/manifest.json");
+        const params = JSON.parse(
+          sessionStorage.getItem("__telegram__initParams") || "{}",
+        );
+        params.tgWebAppData = telegramInitData;
+        sessionStorage.setItem(
+          "__telegram__initParams",
+          JSON.stringify(params),
+        );
       } catch {}
-      await loadSkins();
+      const clean = new URLSearchParams(location.search);
+      for (const key of [...clean.keys()])
+        if (key.startsWith("tgWebApp")) clean.delete(key);
+      window.history.replaceState(
+        { skinsavo: true, depth: 0 },
+        "",
+        location.pathname + (clean.size ? "?" + clean : ""),
+      );
+      bindTelegramBack();
+      try {
+        state.manifest = await api("/static/assets/manifest.json", {
+          signal: AbortSignal.timeout(10000),
+        });
+      } catch {}
+      await renderRoute({ focus: false });
+      if (state.session?.authenticated) document.body.dataset.auth = "ready";
     } catch (e) {
       state.session = null;
       await finishSplash();

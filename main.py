@@ -227,9 +227,26 @@ class SkinCreate(BaseModel):
     description: str = Field(default="", max_length=2000)
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
+@app.get("/skins", include_in_schema=False)
+@app.get("/profile", include_in_schema=False)
+@app.get("/inventory", include_in_schema=False)
+@app.get("/balance", include_in_schema=False)
+@app.get("/balance/topup", include_in_schema=False)
+@app.get("/history", include_in_schema=False)
+@app.get("/faq", include_in_schema=False)
+@app.get("/admin", include_in_schema=False)
 def index():
-    return FileResponse(STATIC_DIR / "index.html")
+    # Deep links and refreshes load the same authenticated application shell.
+    # Each page's data remains behind the existing Telegram-only API middleware.
+    return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/skins/{skin_id:int}", include_in_schema=False)
+def skin_page(skin_id: int):
+    if skin_id < 1:
+        raise HTTPException(status_code=404, detail="Sahifa topilmadi")
+    return index()
 
 
 def telegram_user_from_init_data(init_data: str) -> dict[str, Any]:

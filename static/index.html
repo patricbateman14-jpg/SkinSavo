@@ -12,7 +12,7 @@
     <link rel="icon" href="/static/assets/favicon.svg" type="image/svg+xml" />
     <link rel="preload" as="image" href="/static/assets/brand-loading.png" />
     <script defer src="/static/telegram-web-app.js?v=1"></script>
-    <link rel="stylesheet" href="/static/styles.css?v=telegram-entry-2" />
+    <link rel="stylesheet" href="/static/styles.css?v=pages-1" />
     <noscript
       ><style>
         .auth-loading {
@@ -53,7 +53,7 @@
       aria-labelledby="gateTitle"
     >
       <div class="gate-card">
-        <a class="brand" href="#"
+        <a class="brand" href="/" data-route
           ><b>S</b><span>SkinSavo<small>CS2 SKIN MARKET</small></span></a
         >
         <span class="gate-symbol" aria-hidden="true"
@@ -77,11 +77,12 @@
         >
       </div>
     </section>
-    <a class="skip" href="#catalog">Katalogga o‘tish</a>
+    <a class="skip" href="#mainContent">Sahifaga o‘tish</a>
     <header>
       <a
         class="brand navbar-brand"
-        href="#"
+        href="/"
+        data-route
         aria-label="CS2 Skin Savdo — bosh sahifa"
         ><img
           src="/static/assets/brand-navbar.png"
@@ -91,8 +92,10 @@
           decoding="async"
       /></a>
       <nav>
-        <a class="active" href="#">Bosh sahifa</a><a href="#catalog">Katalog</a
-        ><button data-action="inventory">Inventar</button><a href="#faq">FAQ</a>
+        <a class="active" href="/" data-route>Bosh sahifa</a
+        ><a href="/skins" data-route>Skinlar</a>
+        <a href="/inventory" data-route>Inventar</a
+        ><a href="/faq" data-route>FAQ</a>
       </nav>
       <div class="header-actions">
         <button
@@ -101,21 +104,25 @@
           aria-label="Mavzuni almashtirish"
           data-icon="sun"
         ></button
-        ><button
+        ><a
+          href="/profile"
+          data-route
           class="icon-btn"
           data-action="profile"
           aria-label="Profil"
           data-icon="user"
-        ></button>
-        <div class="balance">
+        ></a>
+        <a class="balance" href="/balance" data-route>
           <small>DEMO BALANS</small><strong id="balanceValue">—</strong>
-        </div>
-        <button
+        </a>
+        <a
+          href="/balance/topup"
+          data-route
           class="add-balance"
           data-action="topup"
           aria-label="Demo balans qo‘shish"
           data-icon="plus"
-        ></button>
+        ></a>
       </div>
     </header>
     <div class="layout">
@@ -138,13 +145,13 @@
           <div id="conditionList"></div>
         </fieldset>
       </aside>
-      <main>
-        <section class="hero">
+      <main id="mainContent" tabindex="-1">
+        <section class="hero" data-home>
           <div class="hero-copy">
             <span class="eyebrow">CS2 SKINS MARKET</span>
             <h1>CS2 skinlar.<br /><em>Sizning uslubingiz.</em></h1>
             <p>Toping. Tanlang. Sinab ko‘ring.</p>
-            <a class="primary" href="#catalog"
+            <a class="primary" href="/skins" data-route
               >Katalogni ochish <span data-icon="arrow"></span
             ></a>
           </div>
@@ -187,7 +194,10 @@
           </form>
           <div class="section-heading">
             <div>
-              <h2>Mashhur Skins <span id="skinCount"></span></h2>
+              <h2>
+                <span id="catalogTitle">Mashhur Skins</span>
+                <span id="skinCount"></span>
+              </h2>
             </div>
             <button id="viewAll">
               Barchasini ko‘rish <span data-icon="arrow"></span>
@@ -205,7 +215,7 @@
             transferi yo‘q.
           </p>
         </section>
-        <section class="trade">
+        <section class="trade" data-home>
           <div class="trade-art" aria-hidden="true">
             <span data-icon="trade"></span
             ><strong>UPGRADE<br />YOUR GAME.</strong>
@@ -213,13 +223,19 @@
           <div class="trade-copy">
             <h2>Inventaringizni yangilang</h2>
 
-            <button class="primary" data-action="inventory">
-              Inventarni ochish <span data-icon="arrow"></span></button
+            <a class="primary" href="/inventory" data-route>
+              Inventarni ochish <span data-icon="arrow"></span></a
             ><small>Demo inventar</small>
           </div>
         </section>
-        <section id="faq">
-          <h2>FAQ</h2>
+        <section id="faq" class="page-view" hidden>
+          <div class="page-header">
+            <div>
+              <span class="eyebrow">YORDAM</span>
+              <h1>FAQ</h1>
+            </div>
+            <a class="secondary" href="/" data-route>Bosh sahifa</a>
+          </div>
           <details>
             <summary>Bu haqiqiy savdo platformasimi?</summary>
             <p>Demo rejim. Haqiqiy mablag‘ ishlatilmaydi.</p>
@@ -229,30 +245,32 @@
             <p>Telegram orqali kiring, demo skin oling yoki soting.</p>
           </details>
         </section>
+        <section
+          id="pageView"
+          class="page-view"
+          hidden
+          tabindex="-1"
+          aria-live="polite"
+        ></section>
         <footer>
           <div class="footer-bottom">
-            <a class="brand" href="#"
+            <a class="brand" href="/" data-route
               ><b>S</b><span>SkinSavo<small>CS2 SKIN MARKET</small></span></a
             >
             <p>
-              © <span id="year"></span> SkinSavo ·
-              <span id="availableStat">—</span> skin
+              © <span id="year"></span> SkinSavo<span
+                id="footerCatalogCount"
+                hidden
+              >
+                · <span id="availableStat">—</span> skin</span
+              >
             </p>
-            <a href="#faq">Yordam ↗</a>
+            <a href="/faq" data-route>Yordam ↗</a>
           </div>
         </footer>
       </main>
     </div>
-    <dialog id="modal" aria-labelledby="modalTitle">
-      <button
-        id="modalClose"
-        class="icon-btn modal-close"
-        aria-label="Yopish"
-        data-icon="close"
-      ></button>
-      <div id="modalContent"></div>
-    </dialog>
     <div id="toast" role="status"></div>
-    <script defer src="/static/app.js?v=telegram-entry-2"></script>
+    <script defer src="/static/app.js?v=pages-1"></script>
   </body>
 </html>

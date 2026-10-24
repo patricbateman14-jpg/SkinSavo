@@ -67,7 +67,9 @@ const crypto = require("crypto");
   telegramData = initData();
   for (const width of [1440, 1280, 1024, 768, 390, 360]) {
     await page.setViewportSize({ width, height: 1000 });
-    await page.goto("http://127.0.0.1:8000", { waitUntil: "domcontentloaded" });
+    await page.goto("http://127.0.0.1:8000/skins", {
+      waitUntil: "domcontentloaded",
+    });
     await page.waitForSelector(".skin-card");
     await page.evaluate(() => document.fonts.ready);
     await page
@@ -116,8 +118,10 @@ const crypto = require("crypto");
       ?.textContent.includes("Dragon Lore"),
   );
   await page.locator(".view-btn").first().click();
-  await page.waitForSelector("dialog[open]");
-  await page.keyboard.press("Escape");
+  await page.waitForURL(/\/skins\/\d+$/);
+  await page.waitForSelector("#pageTitle");
+  await page.goBack();
+  await page.waitForSelector("#skinGrid .skin-card");
   await page.locator("#themeBtn").click();
   if ((await page.locator("html").getAttribute("data-theme")) !== "light")
     throw Error("Theme failed");
@@ -136,21 +140,18 @@ const crypto = require("crypto");
       ),
   );
   await page.locator('[data-action="profile"]').first().click();
-  await page.waitForSelector("dialog[open]");
-  if (
-    !(await page.locator("#modalContent").innerText()).includes("Aziz Aliyev")
-  )
+  await page.waitForURL("**/profile");
+  await page.waitForSelector("#pageContent");
+  if (!(await page.locator("#pageContent").innerText()).includes("Aziz Aliyev"))
     throw Error("Automatic Telegram profile failed");
-  if (!(await page.locator("#modalContent").innerText()).includes("@aziz"))
+  if (!(await page.locator("#pageContent").innerText()).includes("@aziz"))
     throw Error("Username missing");
-  await page.keyboard.press("Escape");
-  await page.locator('[data-action="inventory"]').first().click();
-  await page.waitForSelector("dialog[open]");
-  if (
-    !(await page.locator("#modalTitle").innerText()).includes(
-      "Sizning skinlaringiz",
-    )
-  )
+  await page.locator('header nav [href="/inventory"]').click();
+  await page.waitForURL("**/inventory");
+  await page.waitForFunction(
+    () => document.querySelector("#pageTitle")?.textContent === "Inventar",
+  );
+  if (!(await page.locator("#pageTitle").innerText()).includes("Inventar"))
     throw Error("Inventory unavailable");
   if (errors.length) throw Error(errors.join("\n"));
   console.log(

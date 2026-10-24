@@ -44,6 +44,17 @@ balances and database records are preserved. Startup never deletes demo rows.
 
 ## Catalog and artwork
 
+Each main feature has a shareable URL: `/` (home), `/skins` (catalog),
+`/skins/123` (skin detail), `/profile`, `/inventory`, `/balance`,
+`/balance/topup`, `/history`, `/faq` and `/admin`. Account actions open full
+pages. Direct links and refresh return the application shell; every page still
+requires verified Telegram login. Unknown paths return 404.
+
+Navigation supports browser back/forward and Telegram's Back button. Catalog
+search, sorting and filters remain in the URL when opening a skin and returning.
+The initial login splash stays for at least three seconds; navigation within
+the authenticated app does not restart it.
+
 Search, category, multiple rarity/condition selections and sorting work together.
 Reset clears every filter. Pagination supports catalogs over 100 rows. Category
 counts come from active database listings. Existing 20 demo records are retained;
@@ -65,6 +76,7 @@ npm.cmd install --no-save --package-lock=false playwright
 # In another terminal: .\.venv\Scripts\python.exe scripts/serve-browser-test.py
 node scripts/check-browser.cjs
 node scripts/check-telegram-entry.cjs
+node scripts/check-pages.cjs
 ```
 
 Browser checks require installed Chrome on Windows and the isolated test launcher
@@ -74,7 +86,11 @@ cover unsigned/forged rejection and HMAC-verified automatic login, then test six
 viewport widths, images, catalog controls, profile, inventory and theme. The
 Telegram SDK is simulated with test-signed initData; the actual backend signature
 check runs unchanged. Screenshots go to ignored test-results/. No frontend build
-is required. Actual Telegram-client login still needs a real user to open the bot.
+is required. Page checks also exercise direct links, refresh, back/forward,
+filter URLs and the persisted demo top-up/purchase/sale flow. Start a fresh
+isolated launcher before repeating the page transaction checks. The Telegram
+entry checks use the locally served official SDK. Actual Telegram-client login
+still needs a real user to open the bot.
 
 ## Deployment
 
