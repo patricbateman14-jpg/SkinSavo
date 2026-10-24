@@ -165,6 +165,13 @@
             )[0].toUpperCase();
             return;
           }
+          if (img.closest(".loading-emblem, .navbar-brand")) {
+            const fallback = document.createElement("span");
+            fallback.className = "brand-lettermark";
+            fallback.textContent = "CS2 SKIN SAVDO";
+            img.replaceWith(fallback);
+            return;
+          }
           img.src = "/static/assets/art-unavailable.svg";
           img.alt = "Rasm vaqtincha mavjud emas";
         },
@@ -590,7 +597,9 @@
       return;
     }
     authenticating = true;
-    showGate("Profilga kirilmoqda…", "Telegram hisobingiz tekshirilmoqda.");
+    document.body.dataset.auth = "pending";
+    $("authRetry").hidden = true;
+    if ($("modal").open) $("modal").close();
     try {
       const session = await api("/api/session", {
         signal: AbortSignal.timeout(15000),

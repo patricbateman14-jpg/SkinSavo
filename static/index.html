@@ -10,10 +10,43 @@
     />
     <title>SkinSavo — CS2 SKIN MARKET</title>
     <link rel="icon" href="/static/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" as="image" href="/static/assets/brand-loading.png" />
     <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=branding-1" />
+    <noscript
+      ><style>
+        .auth-loading {
+          display: none !important;
+        }
+        body[data-auth="pending"] .telegram-gate {
+          display: grid;
+        }
+      </style></noscript
+    >
   </head>
   <body data-auth="pending">
+    <section
+      class="auth-loading"
+      id="authLoading"
+      role="status"
+      aria-live="polite"
+      aria-label="Profil yuklanmoqda"
+    >
+      <div class="loading-emblem">
+        <img
+          src="/static/assets/brand-loading.png"
+          alt="CS2 Skin Savdo"
+          width="1254"
+          height="1254"
+          fetchpriority="high"
+          decoding="async"
+        />
+      </div>
+      <span class="loading-status"
+        >Yuklanmoqda<span class="loading-dots" aria-hidden="true"
+          ><i></i><i></i><i></i></span
+      ></span>
+    </section>
     <section
       class="telegram-gate"
       id="telegramGate"
@@ -46,9 +79,17 @@
     </section>
     <a class="skip" href="#catalog">Katalogga o‘tish</a>
     <header>
-      <a class="brand" href="#"
-        ><b>S</b><span>SkinSavo<small>CS2 SKIN MARKET</small></span></a
-      >
+      <a
+        class="brand navbar-brand"
+        href="#"
+        aria-label="CS2 Skin Savdo — bosh sahifa"
+        ><img
+          src="/static/assets/brand-navbar.png"
+          alt="CS2 Skin Savdo"
+          width="2172"
+          height="724"
+          decoding="async"
+      /></a>
       <nav>
         <a class="active" href="#">Bosh sahifa</a><a href="#catalog">Katalog</a
         ><button data-action="inventory">Inventar</button><a href="#faq">FAQ</a>
@@ -212,6 +253,6 @@
       <div id="modalContent"></div>
     </dialog>
     <div id="toast" role="status"></div>
-    <script defer src="/static/app.js"></script>
+    <script defer src="/static/app.js?v=branding-1"></script>
   </body>
 </html>

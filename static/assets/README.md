@@ -4,6 +4,12 @@ are recorded in sources.json. Artwork belongs to its respective creators and
 Valve; inclusion does not imply affiliation or grant rights beyond the source.
 Review permitted use before commercial launch.
 
+brand-loading.png and brand-navbar.png are the user's supplied CS2 SKIN SAVDO
+artwork, copied unchanged from Downloads/loading.png and Downloads/weblogo.png.
+The circular artwork is used while Telegram profile verification is pending;
+the wide logo is used in the application navbar. Animation is implemented in
+CSS, with reduced-motion support.
+
 manifest.json maps existing item names to local assets. No stock, prices or
 account records were generated. The hero Redline is an artwork showcase,
 not a claim of live availability. art-unavailable.svg is an explicit error
