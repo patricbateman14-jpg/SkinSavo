@@ -119,7 +119,7 @@ class TelegramAuthTests(unittest.TestCase):
 
     def test_bot_start_uses_inline_mini_app_button_and_persists_profile(self):
         message = Message.model_validate({'message_id':1, 'date':int(time.time()),
-            'chat':{'id':1,'type':'private'}, 'from':{'id':123,'is_bot':False,'first_name':'Bot User','username':'botuser'}})
+            'chat':{'id':123,'type':'private'}, 'from':{'id':123,'is_bot':False,'first_name':'Bot User','username':'botuser'}})
         bot = AsyncMock()
         # Bind message to the mock bot so Message.answer uses it without network.
         message = message.as_(bot)
@@ -127,7 +127,7 @@ class TelegramAuthTests(unittest.TestCase):
         call = bot.call_args.args[0]
         self.assertEqual(call.reply_markup.inline_keyboard[0][0].web_app.url, main.mini_app_launch_url())
         bot.set_chat_menu_button.assert_awaited_once()
-        self.assertEqual(bot.set_chat_menu_button.call_args.kwargs['chat_id'], 1)
+        self.assertEqual(bot.set_chat_menu_button.call_args.kwargs['chat_id'], 123)
         self.assertEqual(bot.set_chat_menu_button.call_args.kwargs['menu_button'].web_app.url, main.mini_app_launch_url())
         self.assertTrue(bot.call_args_list[0].args[0].reply_markup.remove_keyboard)
         with main.db() as conn:

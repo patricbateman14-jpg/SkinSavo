@@ -18,9 +18,12 @@ every business API require Telegram-signed Mini App initData in
 X-Telegram-Init-Data. There is no password or browser registration flow.
 Set BOT_TOKEN and the production HTTPS WEBAPP_URL in Railway. Startup verifies
 the bot with getMe and configures its default SkinSavo Mini App menu button.
-BOT_USERNAME is optional and is resolved from the token. Run python main.py as
-a separate bot process to handle /start with the inline Mini App button.
-Do not start a second poller for an already running bot. ADMIN_TELEGRAM_ID grants
+BOT_USERNAME is optional and is resolved from the token. The web service also
+handles bot chat through an authenticated webhook; no separate bot worker is
+needed. Startup registers commands and installs /telegram/webhook on WEBAPP_URL.
+It switches this bot from polling/any previous webhook to this deployment and
+preserves Telegram's pending updates. Do not run a poller alongside it.
+ADMIN_TELEGRAM_ID grants
 the matching signed user access to the existing admin listing panel.
 
 Verified login automatically creates or updates ID, name, username, photo URL
@@ -51,8 +54,41 @@ page, and native controls are attached when it arrives.
 Plain Telegram browser tabs and old reply-keyboard buttons do not provide Mini
 App credentials: use the bot's SkinSavo menu button or a configured Main Mini App.
 The bot's /start handler removes old reply keyboards, replaces per-chat menu
-overrides and sends an inline web_app button. Deploy the bot handler in the
-existing bot process as described above; the web service does not start a second poller.
+overrides and sends inline Mini App buttons. python main.py remains a local-only
+polling alternative and refuses to start when a webhook is already active.
+
+## Bot chat
+
+Private chat includes a compact inline menu, profile, demo balance, inventory,
+history, paginated skin catalog, skin details, name search, help and support.
+Commands are installed in Telegram's command menu. Ordinary skin-name messages
+search the same database as the site; common Uzbek menu/login phrases also work.
+Buttons open the relevant Mini App URL with the existing signed automatic login.
+Chat does not execute purchases, sales or top-ups; those actions are confirmed
+in the existing application.
+
+/support collects one text message, creates a durable ticket and supports
+/cancel. /tickets shows only that user's requests. ADMIN_TELEGRAM_ID enables
+/admin and /reply TICKET_ID MESSAGE. Replies are sent only after that explicit
+administrator command; answered tickets do not send a second reply. Users,
+balances, profile photos and inventory are shared with the site and preserved.
+Group chats and callbacks from another chat cannot expose account information.
+Message content is escaped before HTML rendering, and per-user flood control
+limits repeated chat actions.
+
+Webhook requests require X-Telegram-Bot-Api-Secret-Token. The secret is derived
+from BOT_TOKEN unless TELEGRAM_WEBHOOK_SECRET is explicitly configured. It is
+never returned to clients. Updates commit to a SQLite inbox before HTTP 200;
+duplicate update IDs are ignored. The worker preserves each user's update order,
+retries temporary failures up to five attempts, respects Telegram rate limits
+and recovers interrupted processing. Successful payloads are cleared, leaving
+deduplication metadata. Failed inbox rows retain the payload for operator review.
+An abrupt crash between sending a Telegram message and saving its delivery
+result can repeat that outgoing reply; Telegram does not provide a send-message
+idempotency key. Support-ticket creation itself is deduplicated.
+
+Bot protocol references: [Telegram webhooks](https://core.telegram.org/bots/api#setwebhook)
+and [aiogram update dispatch](https://docs.aiogram.dev/en/latest/dispatcher/webhook.html).
 
 New accounts start at zero. Explicit demo top-ups add simulated funds. Demo
 purchases validate stock and balance in a SQLite write transaction and persist
@@ -124,7 +160,10 @@ refresh catalog data. Startup adds the inventory table without changing rows.
 
 Deploy the intended GitHub commit through the existing Railway service and
 verify both its commit and /api/health version 0.4.0. The health response reports
-telegram_configured, telegram_ready and telegram_menu_ready without credentials.
+telegram_configured, telegram_ready, telegram_menu_ready, telegram_webhook_ready
+and telegram_chat_worker_ready without credentials. Confirm both webhook and
+worker readiness when deploying chat changes. Bot and delivery tests mock all
+Telegram sends; production verification does not send unsolicited test messages.
 A healthy URL alone does
 not prove the intended commit deployed.
 

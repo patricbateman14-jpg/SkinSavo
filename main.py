@@ -9,19 +9,20 @@ import os
 import re
 import sqlite3
 import time
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager, contextmanager, suppress
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlparse, urlencode, urlsplit, urlunsplit
 
 from aiogram import Bot, Dispatcher
-from aiogram.filters import CommandStart
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, MenuButtonWebApp, Message, ReplyKeyboardRemove, WebAppInfo
+from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, MenuButtonWebApp, Update, WebAppInfo
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from bot_chat import BotChat, BotServices, COMMANDS, init_chat_tables
+from bot_delivery import TelegramDelivery, init_delivery_tables, webhook_secret
 
 load_dotenv()
 
@@ -33,6 +34,7 @@ WEBAPP_URL = os.getenv("WEBAPP_URL", "").strip()
 START_BALANCE = 0.0  # Only explicit demo top-ups credit simulated funds.
 ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID", "").strip()
 BOT_USERNAME = os.getenv("BOT_USERNAME", "").strip().lstrip("@")
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
 AUTH_MAX_AGE = 86400
 logger = logging.getLogger("skinsavo")
 
@@ -109,6 +111,8 @@ def init_db() -> None:
             name TEXT NOT NULL, price REAL NOT NULL,
             status TEXT NOT NULL DEFAULT 'owned',
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
+        init_chat_tables(conn)
+        init_delivery_tables(conn)
 
 
 def user_payload(telegram_id: str, username: str = "") -> dict[str, Any]:
@@ -157,7 +161,10 @@ async def configure_telegram(app: FastAPI) -> None:
     app.state.bot_username = BOT_USERNAME
     app.state.telegram_ready = False
     app.state.telegram_menu_ready = False
+    app.state.telegram_commands_ready = False
     app.state.telegram_main_app = False
+    app.state.telegram_webhook_ready = False
+    app.state.telegram_delivery = None
     if not BOT_TOKEN:
         return
     try:
@@ -167,28 +174,69 @@ async def configure_telegram(app: FastAPI) -> None:
             app.state.telegram_ready = True
             app.state.telegram_main_app = bool(me.has_main_web_app)
             if WEBAPP_URL.startswith("https://"):
-                await bot.set_chat_menu_button(
-                    menu_button=MenuButtonWebApp(text="SkinSavo", web_app=WebAppInfo(url=mini_app_launch_url())),
-                    request_timeout=8,
-                )
-                app.state.telegram_menu_ready = True
+                try:
+                    await bot.set_chat_menu_button(
+                        menu_button=MenuButtonWebApp(text="SkinSavo", web_app=WebAppInfo(url=mini_app_launch_url())), request_timeout=8)
+                    app.state.telegram_menu_ready = True
+                except Exception as error:
+                    logger.warning("Telegram menu setup unavailable (%s)", type(error).__name__)
+                try:
+                    await bot.set_my_commands([BotCommand(command=name, description=description) for name, description in COMMANDS],
+                                              scope=BotCommandScopeAllPrivateChats(), request_timeout=8)
+                    app.state.telegram_commands_ready = True
+                except Exception as error:
+                    logger.warning("Telegram command setup unavailable (%s)", type(error).__name__)
+                parts = urlsplit(WEBAPP_URL)
+                endpoint = urlunsplit((parts.scheme, parts.netloc, "/telegram/webhook", "", ""))
+                await bot.set_webhook(url=endpoint, secret_token=webhook_secret(BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET),
+                                      allowed_updates=["message", "callback_query"], max_connections=1,
+                                      drop_pending_updates=False, request_timeout=8)
+                # Keep a separate, persistent HTTP session for inbox processing.
+                delivery = TelegramDelivery(db, dp, Bot(BOT_TOKEN))
+                delivery.start()
+                app.state.telegram_delivery = delivery
+                app.state.telegram_webhook_ready = True
     except Exception as error:
         # Exception messages from HTTP clients can contain bot-token URLs.
         logger.warning("Telegram setup unavailable (%s)", type(error).__name__)
 
 
-def mini_app_launch_url() -> str:
+def mini_app_launch_url(path: str | None = None, params: dict | None = None) -> str:
     parts = urlsplit(WEBAPP_URL)
     query = dict(parse_qsl(parts.query))
     query["miniapp"] = "4"
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
+    if params:
+        query.update(params)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path if path is None else path, urlencode(query), ""))
+
+
+async def retry_telegram_setup(application):
+    for delay in (3, 10, 30):
+        await asyncio.sleep(delay)
+        await configure_telegram(application)
+        if application.state.telegram_webhook_ready:
+            return
 
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     init_db()
     await configure_telegram(application)
-    yield
+    setup_retry = None
+    if BOT_TOKEN and WEBAPP_URL.startswith("https://") and not getattr(application.state, "telegram_webhook_ready", False):
+        setup_retry = asyncio.create_task(retry_telegram_setup(application))
+    try:
+        yield
+    finally:
+        if setup_retry:
+            setup_retry.cancel()
+            with suppress(asyncio.CancelledError):
+                await setup_retry
+        delivery = getattr(application.state, "telegram_delivery", None)
+        if delivery:
+            await delivery.close()
+        application.state.telegram_delivery = None
+        application.state.telegram_webhook_ready = False
 
 
 app = FastAPI(title="SkinSavo API", version="0.4.0", lifespan=lifespan)
@@ -346,7 +394,43 @@ def health():
         "telegram_configured": bool(BOT_TOKEN),
         "telegram_ready": getattr(app.state, "telegram_ready", False),
         "telegram_menu_ready": getattr(app.state, "telegram_menu_ready", False),
+        "telegram_commands_ready": getattr(app.state, "telegram_commands_ready", False),
+        "telegram_support_admin_configured": bool(ADMIN_TELEGRAM_ID),
+        "telegram_webhook_ready": getattr(app.state, "telegram_webhook_ready", False),
+        "telegram_chat_worker_ready": bool(getattr(app.state, "telegram_delivery", None) and
+            app.state.telegram_delivery.task and not app.state.telegram_delivery.task.done()),
     }
+
+
+@app.post("/telegram/webhook", include_in_schema=False)
+async def telegram_webhook(request: Request):
+    if not BOT_TOKEN:
+        raise HTTPException(status_code=503, detail="Bot mavjud emas")
+    expected = webhook_secret(BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET)
+    supplied = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not hmac.compare_digest(supplied.encode(), expected.encode()):
+        raise HTTPException(status_code=403, detail="Ruxsat yo‘q")
+    delivery = getattr(app.state, "telegram_delivery", None)
+    if not delivery or not getattr(app.state, "telegram_webhook_ready", False):
+        raise HTTPException(status_code=503, detail="Bot qayta ulanmoqda")
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Xabar juda katta")
+    try:
+        payload = json.loads(body)
+        if not isinstance(payload, dict) or type(payload.get("update_id")) is not int or not 0 <= payload["update_id"] < 2**63:
+            raise ValueError()
+        Update.model_validate(payload)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Telegram xabari noto‘g‘ri")
+    try:
+        await asyncio.to_thread(delivery.enqueue, payload)
+    except (sqlite3.OperationalError, OverflowError):
+        raise HTTPException(status_code=503, detail="Keyinroq qayta urining")
+    delivery.wake.set()
+    return JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
 
 
 CATEGORIES = {
@@ -520,53 +604,22 @@ def sell_demo_item(item_id: int, x_telegram_init_data: str = Header(default="", 
 
 # ---------- Telegram bot ----------
 dp = Dispatcher()
-
-
-@dp.message(CommandStart())
-async def start_handler(message: Message, bot: Bot):
-    if message.chat.type != "private" or not message.from_user:
-        return
-    sync_telegram_profile(message.from_user.model_dump(exclude_none=True), mini_app=False)
-    if not WEBAPP_URL.startswith("https://"):
-        await message.answer(
-            "🎮 SkinSavo demo tayyor.\n\n"
-            "Mini-ilovani ishga tushirish uchun .env faylida WEBAPP_URL qiymatiga HTTPS domen yozing."
-        )
-        return
-
-    # Replace old per-chat menu overrides and remove legacy reply keyboards:
-    # reply-keyboard Web Apps do not receive the signed user initData needed here.
-    try:
-        await bot.set_chat_menu_button(chat_id=message.chat.id,
-            menu_button=MenuButtonWebApp(text="SkinSavo", web_app=WebAppInfo(url=mini_app_launch_url())),
-            request_timeout=8)
-    except Exception as error:
-        logger.warning("Telegram chat menu unavailable (%s)", type(error).__name__)
-    await message.answer("SkinSavo", reply_markup=ReplyKeyboardRemove())
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="SkinSavo ochish",
-                    web_app=WebAppInfo(url=mini_app_launch_url()),
-                )
-            ]
-        ],
-    )
-    await message.answer(
-        "<b>SkinSavo</b>ga xush kelibsiz!\nIlovani oching — profilingiz avtomatik tayyor.",
-        reply_markup=keyboard,
-        parse_mode="HTML",
-    )
+chat = BotChat(BotServices(connect=db, sync_profile=sync_telegram_profile,
+    launch_url=mini_app_launch_url, admin_id=lambda: ADMIN_TELEGRAM_ID,
+    web_ready=lambda: WEBAPP_URL.startswith("https://")))
+dp.include_router(chat.router)
+start_handler = chat.start
 
 
 async def run_bot() -> None:
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN .env faylida ko‘rsatilmagan")
     init_db()
-    await configure_telegram(app)
     async with Bot(BOT_TOKEN) as bot:
-        await dp.start_polling(bot)
+        info = await bot.get_webhook_info()
+        if info.url:
+            raise RuntimeError("Webhook faol. Bot allaqachon web xizmatda ishlayapti; ikkinchi poller ishga tushirilmaydi.")
+        await dp.start_polling(bot, allowed_updates=["message", "callback_query"], handle_as_tasks=False)
 
 
 if __name__ == "__main__":
