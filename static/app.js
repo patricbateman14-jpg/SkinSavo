@@ -590,6 +590,18 @@
     });
     telegramBackBound = tg.BackButton;
   }
+  window.addEventListener("skinsavo:telegram-ready", () => {
+    tg = window.Telegram?.WebApp || tg;
+    try {
+      tg?.ready();
+      tg?.expand();
+      if (state.session?.authenticated) {
+        bindTelegramBack();
+        if (normalizedPath() === "/") tg?.BackButton?.hide();
+        else tg?.BackButton?.show();
+      }
+    } catch {}
+  });
   function reset() {
     clearTimeout(searchTimer);
     Object.assign(state, {

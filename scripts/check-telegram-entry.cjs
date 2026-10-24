@@ -74,6 +74,7 @@ function signed(
     for (const pattern of options.stalled
       ? [
           "https://fonts.googleapis.com/**",
+          "**/static/telegram-web-app.js*",
           "**/static/assets/manifest.json",
           "**/api/skins?*",
         ]

@@ -135,7 +135,7 @@ class TelegramAuthTests(unittest.TestCase):
 
     def test_launch_url_preserves_query_and_clears_stale_fragment(self):
         main.WEBAPP_URL = 'https://skinsavo.example/?lang=uz#old-section'
-        self.assertEqual(main.mini_app_launch_url(), 'https://skinsavo.example/?lang=uz&miniapp=3')
+        self.assertEqual(main.mini_app_launch_url(), 'https://skinsavo.example/?lang=uz&miniapp=4')
 
     def test_main_app_link_only_when_telegram_confirms_configuration(self):
         main.app.state.bot_username = 'SkinSavoTestBot'

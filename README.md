@@ -46,6 +46,8 @@ is trusted until the backend verifies its Telegram signature.
 Fonts load without blocking scripts. Artwork and catalog requests run in parallel
 and cannot hold the verified profile behind the login screen. The official
 Telegram SDK is served locally from static/telegram-web-app.js.
+It loads asynchronously: a slow SDK download cannot block verification or the
+page, and native controls are attached when it arrives.
 Plain Telegram browser tabs and old reply-keyboard buttons do not provide Mini
 App credentials: use the bot's SkinSavo menu button or a configured Main Mini App.
 The bot's /start handler removes old reply keyboards, replaces per-chat menu

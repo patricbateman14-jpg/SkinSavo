@@ -11,18 +11,22 @@
     <title>SkinSavo — CS2 SKIN MARKET</title>
     <link rel="icon" href="/static/assets/favicon.svg" type="image/svg+xml" />
     <script
-      src="/static/telegram-auth.js?v=auth-3"
+      src="/static/telegram-auth.js?v=auth-4"
       fetchpriority="high"
     ></script>
     <link
       rel="preload"
       as="script"
-      href="/static/app.js?v=auth-3"
+      href="/static/app.js?v=auth-4"
       fetchpriority="high"
     />
     <link rel="preload" as="image" href="/static/assets/brand-loading.png" />
-    <script defer src="/static/telegram-web-app.js?v=1"></script>
-    <link rel="stylesheet" href="/static/styles.css?v=auth-3" />
+    <script
+      async
+      src="/static/telegram-web-app.js?v=1"
+      onload="window.dispatchEvent(new Event('skinsavo:telegram-ready'))"
+    ></script>
+    <link rel="stylesheet" href="/static/styles.css?v=auth-4" />
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap"
@@ -287,6 +291,6 @@
       </main>
     </div>
     <div id="toast" role="status"></div>
-    <script defer src="/static/app.js?v=auth-3"></script>
+    <script defer src="/static/app.js?v=auth-4"></script>
   </body>
 </html>

@@ -180,7 +180,7 @@ async def configure_telegram(app: FastAPI) -> None:
 def mini_app_launch_url() -> str:
     parts = urlsplit(WEBAPP_URL)
     query = dict(parse_qsl(parts.query))
-    query["miniapp"] = "3"
+    query["miniapp"] = "4"
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
 
 
