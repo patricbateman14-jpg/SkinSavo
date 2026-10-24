@@ -16,7 +16,7 @@ from urllib.parse import parse_qsl, urlparse, urlencode, urlsplit, urlunsplit
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, MenuButtonWebApp, Message, WebAppInfo
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, MenuButtonWebApp, Message, ReplyKeyboardRemove, WebAppInfo
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -180,7 +180,7 @@ async def configure_telegram(app: FastAPI) -> None:
 def mini_app_launch_url() -> str:
     parts = urlsplit(WEBAPP_URL)
     query = dict(parse_qsl(parts.query))
-    query["miniapp"] = "2"
+    query["miniapp"] = "3"
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
 
 
@@ -293,8 +293,8 @@ def require_admin(init_data: str) -> dict[str, Any]:
     return user
 
 @app.get("/api/session")
-def session_info(x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
-    user = telegram_user_from_init_data(x_telegram_init_data)
+def session_info(request: Request):
+    user = request.state.telegram_user  # Already verified once by the API middleware.
     profile = sync_telegram_profile(user)
     return {"authenticated": True, "telegram_id": str(user["id"]), "username": profile["username"], "user": profile,
             "is_admin": bool(ADMIN_TELEGRAM_ID and str(user["id"]) == ADMIN_TELEGRAM_ID)}
@@ -534,6 +534,15 @@ async def start_handler(message: Message, bot: Bot):
         )
         return
 
+    # Replace old per-chat menu overrides and remove legacy reply keyboards:
+    # reply-keyboard Web Apps do not receive the signed user initData needed here.
+    try:
+        await bot.set_chat_menu_button(chat_id=message.chat.id,
+            menu_button=MenuButtonWebApp(text="SkinSavo", web_app=WebAppInfo(url=mini_app_launch_url())),
+            request_timeout=8)
+    except Exception as error:
+        logger.warning("Telegram chat menu unavailable (%s)", type(error).__name__)
+    await message.answer("SkinSavo", reply_markup=ReplyKeyboardRemove())
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [

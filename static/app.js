@@ -46,25 +46,27 @@
       .forEach((el) => (el.innerHTML = icon(el.dataset.icon)));
   }
   icons();
+  const auth = window.SkinSavoAuth;
+  if (!auth) {
+    setTimeout(
+      () => {
+        document.body.dataset.auth = "blocked";
+        $("gateTitle").textContent = "Ulanishni yangilang";
+        $("gateMessage").textContent =
+          "Kirish moduli yuklanmadi. Qayta urinib ko‘ring.";
+        $("authRetry").hidden = false;
+        $("authRetry").onclick = () => location.reload();
+      },
+      Math.max(0, 3000 - performance.now()),
+    );
+    return;
+  }
   let tg = window.Telegram?.WebApp;
-  let telegramInitData = "";
+  let launchHash = "";
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   function readTelegramInitData() {
     tg = window.Telegram?.WebApp || tg;
-    const sdkData =
-      tg?.initData || window.Telegram?.WebView?.initParams?.tgWebAppData;
-    if (typeof sdkData === "string" && sdkData.trim()) return sdkData;
-    for (const source of [location.hash.slice(1), location.search.slice(1)]) {
-      const raw = new URLSearchParams(source).get("tgWebAppData");
-      if (raw?.trim()) return raw;
-    }
-    try {
-      const stored = JSON.parse(
-        sessionStorage.getItem("__telegram__initParams") || "{}",
-      );
-      if (typeof stored.tgWebAppData === "string") return stored.tgWebAppData;
-    } catch {}
-    return "";
+    return auth.readData();
   }
   try {
     tg?.ready();
@@ -140,23 +142,10 @@
     toastTimer = setTimeout(() => $("toast").classList.remove("show"), 3500);
   }
   async function api(path, options = {}) {
-    const response = await fetch(path, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Telegram-Init-Data": telegramInitData || readTelegramInitData(),
-        ...options.headers,
-      },
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = new Error(
-        typeof data.detail === "string"
-          ? data.detail
-          : "So‘rov bajarilmadi. Qayta urinib ko‘ring.",
-      );
-      error.status = response.status;
-      if (response.status === 401) {
+    try {
+      return await auth.request(path, options);
+    } catch (error) {
+      if (error.status === 401) {
         state.session = null;
         if (!authenticating)
           showGate(
@@ -166,7 +155,6 @@
       }
       throw error;
     }
-    return data;
   }
   function imageUrl(item) {
     const local = state.manifest[item.name];
@@ -502,7 +490,7 @@
       navigate(url);
       return;
     }
-    window.history.replaceState(window.history.state, "", url);
+    window.history.replaceState(window.history.state, "", url + launchHash);
     lastCatalogUrl = url;
     loadSkins();
   }
@@ -516,7 +504,7 @@
       window.history[replace ? "replaceState" : "pushState"](
         { skinsavo: true, depth },
         "",
-        next,
+        next + launchHash,
       );
     }
     renderRoute();
@@ -816,7 +804,7 @@
   async function loadBotLink() {
     try {
       const config = await api("/api/app-config", {
-        signal: AbortSignal.timeout(12000),
+        timeoutMs: 8000,
       });
       const entryUrl = config.mini_app_url || config.bot_url;
       if (
@@ -830,87 +818,110 @@
     } catch {}
   }
   let authenticating = false;
+  let initialSession = auth.initialSession;
+  let lastAuthError = null;
+  // Start nonessential artwork mapping while identity is being verified.
+  api("/static/assets/manifest.json", { timeoutMs: 3000 })
+    .then((manifest) => {
+      state.manifest = manifest;
+    })
+    .catch(() => {});
   async function authenticate() {
     if (authenticating) return;
     authenticating = true;
-    const startedAt = performance.now();
     const finishSplash = () =>
-      sleep(Math.max(0, 3000 - (performance.now() - startedAt)));
+      sleep(Math.max(0, 3000 - (performance.now() - auth.startedAt)));
     document.body.dataset.auth = "pending";
     $("authRetry").hidden = true;
     try {
-      // Telegram launch data may arrive after our first JavaScript tick.
-      // Read it again during the splash instead of treating that as a browser.
-      while (
-        !(telegramInitData = readTelegramInitData()) &&
-        performance.now() - startedAt < 3000
-      ) {
-        await sleep(50);
-      }
-      if (!telegramInitData) {
-        await finishSplash();
-        const insideTelegram = tg?.platform && tg.platform !== "unknown";
-        showGate(
-          insideTelegram
-            ? "Mini App orqali oching"
-            : "Bu sayt faqat Telegramda ishlaydi",
-          "Botga kiring va pastdagi SkinSavo menyu tugmasini bosing. Oddiy havola yoki eski keyboard tugmasi loginni ishga tushirmaydi.",
-          true,
-        );
-        return;
-      }
+      const pending = initialSession || auth.signIn();
+      initialSession = null;
+      const session = await pending;
+      readTelegramInitData();
       try {
         tg?.ready();
         tg?.expand();
       } catch {}
-      const session = await api("/api/session", {
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!session.authenticated || !session.user)
-        throw new Error("Kirish tasdiqlanmadi.");
-      await finishSplash();
       state.session = session;
       renderAccount(session.user);
-      try {
-        const params = JSON.parse(
-          sessionStorage.getItem("__telegram__initParams") || "{}",
-        );
-        params.tgWebAppData = telegramInitData;
-        sessionStorage.setItem(
-          "__telegram__initParams",
-          JSON.stringify(params),
-        );
-      } catch {}
+      launchHash = auth.persistLaunch();
       const clean = new URLSearchParams(location.search);
       for (const key of [...clean.keys()])
         if (key.startsWith("tgWebApp")) clean.delete(key);
       window.history.replaceState(
         { skinsavo: true, depth: 0 },
         "",
-        location.pathname + (clean.size ? "?" + clean : ""),
+        location.pathname + (clean.size ? "?" + clean : "") + launchHash,
       );
       bindTelegramBack();
-      try {
-        state.manifest = await api("/static/assets/manifest.json", {
-          signal: AbortSignal.timeout(10000),
-        });
-      } catch {}
-      await renderRoute({ focus: false });
-      if (state.session?.authenticated) document.body.dataset.auth = "ready";
+      // Profile is already verified. Catalog/artwork cannot hold login hostage.
+      renderRoute({ focus: false }).catch((error) => toast(error.message));
+      await finishSplash();
+      if (!state.session?.authenticated) {
+        const error = new Error("Sessiya tugadi");
+        error.status = 401;
+        throw error;
+      }
+      lastAuthError = null;
+      document.body.dataset.auth = "ready";
     } catch (e) {
       state.session = null;
+      lastAuthError = e;
       await finishSplash();
-      showGate(
-        e.status === 401 ? "Telegramdan qayta oching" : "Ulanib bo‘lmadi",
-        e.status === 401
-          ? "Botdagi SkinSavo tugmasidan qayta kiring."
-          : "Internetni tekshiring va qayta urinib ko‘ring.",
-        e.status !== 401,
-      );
+      if (e.code === "NO_INIT_DATA") {
+        showGate(
+          auth.insideTelegram()
+            ? "Bot menyusidan qayta oching"
+            : "Bu sayt faqat Telegramda ishlaydi",
+          "Botdagi pastki SkinSavo menyu tugmasini bosing. Profil avtomatik ochiladi.",
+          true,
+        );
+      } else {
+        showGate(
+          e.status === 401 ? "Telegramdan qayta oching" : "Ulanish tiklanmadi",
+          e.status === 401
+            ? "Botdagi SkinSavo menyusidan qayta kiring."
+            : "Internetni tekshiring. Qayta urinish profilingizni o‘zgartirmaydi.",
+          true,
+        );
+      }
     } finally {
       authenticating = false;
     }
   }
+  function recoverLogin() {
+    if (authenticating || document.body.dataset.auth !== "blocked") return;
+    const raw = readTelegramInitData();
+    if (raw && raw !== auth.lastAttemptData) authenticate();
+  }
+  // A late native bridge must recover automatically, even after the initial gate.
+  const lateBridge = setInterval(recoverLogin, 200);
+  setTimeout(() => clearInterval(lateBridge), 30000);
+  window.addEventListener("hashchange", recoverLogin);
+  window.addEventListener("pageshow", recoverLogin);
+  window.addEventListener("focus", recoverLogin);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) recoverLogin();
+  });
+  window.addEventListener("online", () => {
+    if (
+      !authenticating &&
+      document.body.dataset.auth === "blocked" &&
+      readTelegramInitData() &&
+      lastAuthError?.status !== 401
+    )
+      authenticate();
+  });
+  $("telegramOpen").onclick = (event) => {
+    if (auth.insideTelegram() && tg?.openTelegramLink) {
+      event.preventDefault();
+      try {
+        tg.openTelegramLink($("telegramOpen").href);
+      } catch {
+        location.href = $("telegramOpen").href;
+      }
+    }
+  };
   $("authRetry").onclick = authenticate;
   loadBotLink();
   authenticate();

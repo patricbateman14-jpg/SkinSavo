@@ -1,6 +1,7 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
 const crypto = require("crypto");
+const base = process.env.SKINSAVO_TEST_URL || "http://127.0.0.1:8000";
 (async () => {
   const browser = await chromium.launch({
     executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
@@ -45,7 +46,7 @@ const crypto = require("crypto");
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   fs.mkdirSync("test-results", { recursive: true });
-  await page.goto("http://127.0.0.1:8000", { waitUntil: "domcontentloaded" });
+  await page.goto(base, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => document.body.dataset.auth === "blocked");
   if (await page.locator("header").isVisible())
     throw Error("Guest can see app");
@@ -53,7 +54,7 @@ const crypto = require("crypto");
     !(await page.locator("#gateTitle").innerText()).includes("faqat Telegramda")
   )
     throw Error("Missing Telegram gate");
-  const blocked = await page.request.get("http://127.0.0.1:8000/api/skins");
+  const blocked = await page.request.get(base + "/api/skins");
   if (blocked.status() !== 401) throw Error("Unsigned catalog API allowed");
   telegramData = initData("wrong-secret");
   await page.reload();
@@ -67,7 +68,7 @@ const crypto = require("crypto");
   telegramData = initData();
   for (const width of [1440, 1280, 1024, 768, 390, 360]) {
     await page.setViewportSize({ width, height: 1000 });
-    await page.goto("http://127.0.0.1:8000/skins", {
+    await page.goto(base + "/skins", {
       waitUntil: "domcontentloaded",
     });
     await page.waitForSelector(".skin-card");

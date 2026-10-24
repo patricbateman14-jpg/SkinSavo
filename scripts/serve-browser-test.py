@@ -1,5 +1,6 @@
 """Local-only signed Telegram fixture. Never use this launcher for deployment."""
 import sqlite3
+import os
 import sys
 import tempfile
 from contextlib import closing
@@ -25,4 +26,4 @@ if __name__ == '__main__':
                 source.backup(target)
         main.BOT_TOKEN = '123456789:browser-test-secret-only'
         main.configure_telegram = fixture_telegram
-        uvicorn.run(main.app, host='127.0.0.1', port=8000, access_log=False)
+        uvicorn.run(main.app, host='127.0.0.1', port=int(os.environ.get('SKINSAVO_TEST_PORT', '8000')), access_log=False)

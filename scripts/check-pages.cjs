@@ -1,7 +1,7 @@
 const { chromium } = require("playwright");
 const crypto = require("crypto");
 const fs = require("fs");
-const base = "http://127.0.0.1:8000";
+const base = process.env.SKINSAVO_TEST_URL || "http://127.0.0.1:8000";
 const user = {
   id: 999010,
   first_name: "Aziz",

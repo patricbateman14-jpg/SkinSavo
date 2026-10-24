@@ -30,11 +30,27 @@ are ignored. No phone number, password, or contact permission is requested.
 The gate remains until the backend confirms the Telegram signature. Forged,
 expired, duplicated or malformed credentials are rejected by the server.
 The branded splash remains for at least three seconds and waits longer for a
-slow profile response. Telegram launch data is re-read during initialization;
-signed data in the launch fragment/query can also be recovered if SDK setup is
-delayed. The official Telegram SDK is served locally from static/telegram-web-app.js.
+slow profile response. A small early script starts verification before the
+application, fonts and artwork. Fresh signed launch fragment/query data takes
+precedence over cached SDK credentials. Temporary network errors and 5xx
+responses retry up to three times with bounded timeouts. Invalid signatures
+are never accepted or repeatedly retried. No new registration is created by a retry.
+
+Telegram launch data is re-read during initialization; native bridges get up
+to ten seconds and late credentials can recover the gate automatically for
+thirty seconds, or on hash/focus/online events. Fetch timeouts use AbortController
+without requiring AbortSignal.timeout in older WebViews. A signed launch fragment
+is retained for deep-page refresh when sessionStorage is disabled. No profile
+is trusted until the backend verifies its Telegram signature.
+
+Fonts load without blocking scripts. Artwork and catalog requests run in parallel
+and cannot hold the verified profile behind the login screen. The official
+Telegram SDK is served locally from static/telegram-web-app.js.
 Plain Telegram browser tabs and old reply-keyboard buttons do not provide Mini
 App credentials: use the bot's SkinSavo menu button or a configured Main Mini App.
+The bot's /start handler removes old reply keyboards, replaces per-chat menu
+overrides and sends an inline web_app button. Deploy the bot handler in the
+existing bot process as described above; the web service does not start a second poller.
 
 New accounts start at zero. Explicit demo top-ups add simulated funds. Demo
 purchases validate stock and balance in a SQLite write transaction and persist
@@ -82,14 +98,19 @@ node scripts/check-pages.cjs
 Browser checks require installed Chrome on Windows and the isolated test launcher
 above. It copies the local catalog into a temporary database, uses a test-only
 token, and makes no Telegram API calls. Never deploy that launcher. Browser tests
-cover unsigned/forged rejection and HMAC-verified automatic login, then test six
+can use another port via SKINSAVO_TEST_PORT on the launcher and SKINSAVO_TEST_URL
+on the check scripts. They cover unsigned/forged rejection and HMAC-verified
+automatic login, then test six
 viewport widths, images, catalog controls, profile, inventory and theme. The
 Telegram SDK is simulated with test-signed initData; the actual backend signature
 check runs unchanged. Screenshots go to ignored test-results/. No frontend build
 is required. Page checks also exercise direct links, refresh, back/forward,
 filter URLs and the persisted demo top-up/purchase/sale flow. Start a fresh
 isolated launcher before repeating the page transaction checks. The Telegram
-entry checks use the locally served official SDK. Actual Telegram-client login
+entry checks use the locally served official SDK and cover late bridges,
+expired SDK cache with a fresh launch, disabled storage, older timeout APIs,
+temporary network/server/proxy failures, and stalled nonessential resources.
+Actual Telegram-client login
 still needs a real user to open the bot.
 
 ## Deployment

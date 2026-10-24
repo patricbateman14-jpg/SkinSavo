@@ -126,12 +126,16 @@ class TelegramAuthTests(unittest.TestCase):
         asyncio.run(main.start_handler(message, bot))
         call = bot.call_args.args[0]
         self.assertEqual(call.reply_markup.inline_keyboard[0][0].web_app.url, main.mini_app_launch_url())
+        bot.set_chat_menu_button.assert_awaited_once()
+        self.assertEqual(bot.set_chat_menu_button.call_args.kwargs['chat_id'], 1)
+        self.assertEqual(bot.set_chat_menu_button.call_args.kwargs['menu_button'].web_app.url, main.mini_app_launch_url())
+        self.assertTrue(bot.call_args_list[0].args[0].reply_markup.remove_keyboard)
         with main.db() as conn:
             self.assertEqual(conn.execute("SELECT first_name FROM users WHERE telegram_id='123'").fetchone()[0], 'Bot User')
 
     def test_launch_url_preserves_query_and_clears_stale_fragment(self):
         main.WEBAPP_URL = 'https://skinsavo.example/?lang=uz#old-section'
-        self.assertEqual(main.mini_app_launch_url(), 'https://skinsavo.example/?lang=uz&miniapp=2')
+        self.assertEqual(main.mini_app_launch_url(), 'https://skinsavo.example/?lang=uz&miniapp=3')
 
     def test_main_app_link_only_when_telegram_confirms_configuration(self):
         main.app.state.bot_username = 'SkinSavoTestBot'
