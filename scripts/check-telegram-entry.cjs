@@ -86,6 +86,11 @@ function signed(
     }
     if (options.blockSdk)
       await page.route("**/static/telegram-web-app.js*", (r) => r.abort());
+    if (options.delayedSdk)
+      await page.route("**/static/telegram-web-app.js*", async (r) => {
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+        await r.continue();
+      });
     if (options.late) {
       await page.addInitScript(
         ({ data, delay, hint }) => {
@@ -142,7 +147,7 @@ function signed(
         await new Promise((resolve) => setTimeout(resolve, 4000));
       await r.continue();
     });
-    let url = base;
+    let url = base + (options.delayedSdk ? "/profile" : "");
     if (options.hash)
       url +=
         "#" +
@@ -223,6 +228,20 @@ function signed(
     }
     if (options.fast && firstSessionAt - started > 1200)
       throw Error("Session verification started too late");
+    if (options.delayedSdk) {
+      if (Date.now() - started > 3900) throw Error("Slow SDK blocked login");
+      await page.waitForFunction(() => Boolean(window.Telegram?.WebApp));
+      const sdk = await page.evaluate(() => ({
+        platform: Telegram.WebApp.platform,
+        version: Telegram.WebApp.version,
+        back: Telegram.WebApp.BackButton.isVisible,
+      }));
+      if (sdk.platform !== "android" || sdk.version !== "8.0" || !sdk.back)
+        throw Error(
+          "Late SDK lost launch metadata or Back button: " +
+            JSON.stringify(sdk),
+        );
+    }
     if (errors.length) throw Error(label + ": " + errors.join("\n"));
     console.log(
       "PASS",
@@ -242,6 +261,10 @@ function signed(
     fast: true,
   });
   await scenario("delayed Telegram bridge", { late: true });
+  await scenario(
+    "delayed SDK preserves launch metadata and native Back button",
+    { hash: true, delayedSdk: true },
+  );
   await scenario(
     "new launch supersedes in-flight identity without showing old account",
     { hash: true, switchIdentity: true },

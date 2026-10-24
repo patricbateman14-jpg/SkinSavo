@@ -126,12 +126,27 @@
     return inFlight;
   }
   function persistLaunch() {
+    const launch = new URLSearchParams();
+    for (const [key, value] of Object.entries(
+      window.Telegram?.WebView?.initParams || {},
+    )) {
+      if (key.startsWith("tgWebApp") && typeof value === "string")
+        launch.set(key, value);
+    }
+    for (const source of [location.search.slice(1), location.hash.slice(1)]) {
+      for (const [key, value] of launchParams(source)) {
+        if (key.startsWith("tgWebApp")) launch.set(key, value);
+      }
+    }
+    launch.set("tgWebAppData", verifiedData);
     try {
       const params = JSON.parse(
         sessionStorage.getItem("__telegram__initParams") || "{}",
       );
-      params.tgWebAppData = verifiedData;
-      sessionStorage.setItem("__telegram__initParams", JSON.stringify(params));
+      sessionStorage.setItem(
+        "__telegram__initParams",
+        JSON.stringify({ ...params, ...Object.fromEntries(launch) }),
+      );
       if (
         JSON.parse(sessionStorage.getItem("__telegram__initParams"))
           ?.tgWebAppData === verifiedData
@@ -139,7 +154,7 @@
         return "";
     } catch {}
     // Keep signed launch data across deep-page refresh if WebView storage is disabled.
-    return "#" + new URLSearchParams({ tgWebAppData: verifiedData });
+    return "#" + launch;
   }
   const auth = {
     startedAt,
