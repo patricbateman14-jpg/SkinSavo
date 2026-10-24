@@ -46,7 +46,20 @@
       .forEach((el) => (el.innerHTML = icon(el.dataset.icon)));
   }
   icons();
-  const tg = window.Telegram?.WebApp;
+  let tg = window.Telegram?.WebApp;
+  let telegramInitData = "";
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  function readTelegramInitData() {
+    tg = window.Telegram?.WebApp || tg;
+    const sdkData =
+      tg?.initData || window.Telegram?.WebView?.initParams?.tgWebAppData;
+    if (typeof sdkData === "string" && sdkData.trim()) return sdkData;
+    for (const source of [location.hash.slice(1), location.search.slice(1)]) {
+      const raw = new URLSearchParams(source).get("tgWebAppData");
+      if (raw?.trim()) return raw;
+    }
+    return "";
+  }
   try {
     tg?.ready();
     tg?.expand();
@@ -125,7 +138,7 @@
       ...options,
       headers: {
         "Content-Type": "application/json",
-        "X-Telegram-Init-Data": tg?.initData || "",
+        "X-Telegram-Init-Data": telegramInitData || readTelegramInitData(),
         ...options.headers,
       },
     });
@@ -139,7 +152,11 @@
       error.status = response.status;
       if (response.status === 401) {
         state.session = null;
-        showGate("Sessiya tugadi", "Botdagi SkinSavo tugmasidan qayta oching.");
+        if (!authenticating)
+          showGate(
+            "Sessiya tugadi",
+            "Botdagi SkinSavo tugmasidan qayta oching.",
+          );
       }
       throw error;
     }
@@ -580,8 +597,13 @@
       const config = await api("/api/app-config", {
         signal: AbortSignal.timeout(12000),
       });
-      if (/^https:\/\/t\.me\/[A-Za-z0-9_]+$/.test(config.bot_url || "")) {
-        $("telegramOpen").href = config.bot_url;
+      const entryUrl = config.mini_app_url || config.bot_url;
+      if (
+        /^https:\/\/t\.me\/[A-Za-z0-9_]+(?:\?(?:startapp|start=app))?$/.test(
+          entryUrl || "",
+        )
+      ) {
+        $("telegramOpen").href = entryUrl;
         $("telegramOpen").hidden = false;
       }
     } catch {}
@@ -589,23 +611,44 @@
   let authenticating = false;
   async function authenticate() {
     if (authenticating) return;
-    if (!tg?.initData) {
-      showGate(
-        "Bu sayt faqat Telegramda ishlaydi",
-        "Botdagi SkinSavo tugmasidan oching. Profil avtomatik yaratiladi.",
-      );
-      return;
-    }
     authenticating = true;
+    const startedAt = performance.now();
+    const finishSplash = () =>
+      sleep(Math.max(0, 3000 - (performance.now() - startedAt)));
     document.body.dataset.auth = "pending";
     $("authRetry").hidden = true;
     if ($("modal").open) $("modal").close();
     try {
+      // Telegram launch data may arrive after our first JavaScript tick.
+      // Read it again during the splash instead of treating that as a browser.
+      while (
+        !(telegramInitData = readTelegramInitData()) &&
+        performance.now() - startedAt < 3000
+      ) {
+        await sleep(50);
+      }
+      if (!telegramInitData) {
+        await finishSplash();
+        const insideTelegram = tg?.platform && tg.platform !== "unknown";
+        showGate(
+          insideTelegram
+            ? "Mini App orqali oching"
+            : "Bu sayt faqat Telegramda ishlaydi",
+          "Botga kiring va pastdagi SkinSavo menyu tugmasini bosing. Oddiy havola yoki eski keyboard tugmasi loginni ishga tushirmaydi.",
+          true,
+        );
+        return;
+      }
+      try {
+        tg?.ready();
+        tg?.expand();
+      } catch {}
       const session = await api("/api/session", {
         signal: AbortSignal.timeout(15000),
       });
       if (!session.authenticated || !session.user)
         throw new Error("Kirish tasdiqlanmadi.");
+      await finishSplash();
       state.session = session;
       renderAccount(session.user);
       document.body.dataset.auth = "ready";
@@ -615,6 +658,7 @@
       await loadSkins();
     } catch (e) {
       state.session = null;
+      await finishSplash();
       showGate(
         e.status === 401 ? "Telegramdan qayta oching" : "Ulanib bo‘lmadi",
         e.status === 401

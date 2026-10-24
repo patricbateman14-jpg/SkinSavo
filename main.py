@@ -12,7 +12,7 @@ import time
 from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qsl, urlparse
+from urllib.parse import parse_qsl, urlparse, urlencode, urlsplit, urlunsplit
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
@@ -157,6 +157,7 @@ async def configure_telegram(app: FastAPI) -> None:
     app.state.bot_username = BOT_USERNAME
     app.state.telegram_ready = False
     app.state.telegram_menu_ready = False
+    app.state.telegram_main_app = False
     if not BOT_TOKEN:
         return
     try:
@@ -164,15 +165,23 @@ async def configure_telegram(app: FastAPI) -> None:
             me = await bot.get_me(request_timeout=8)
             app.state.bot_username = me.username or ""
             app.state.telegram_ready = True
+            app.state.telegram_main_app = bool(me.has_main_web_app)
             if WEBAPP_URL.startswith("https://"):
                 await bot.set_chat_menu_button(
-                    menu_button=MenuButtonWebApp(text="SkinSavo", web_app=WebAppInfo(url=WEBAPP_URL)),
+                    menu_button=MenuButtonWebApp(text="SkinSavo", web_app=WebAppInfo(url=mini_app_launch_url())),
                     request_timeout=8,
                 )
                 app.state.telegram_menu_ready = True
     except Exception as error:
         # Exception messages from HTTP clients can contain bot-token URLs.
         logger.warning("Telegram setup unavailable (%s)", type(error).__name__)
+
+
+def mini_app_launch_url() -> str:
+    parts = urlsplit(WEBAPP_URL)
+    query = dict(parse_qsl(parts.query))
+    query["miniapp"] = "2"
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
 
 
 @asynccontextmanager
@@ -278,7 +287,11 @@ def session_info(x_telegram_init_data: str = Header(default="", alias="X-Telegra
 def app_config():
     username = getattr(app.state, "bot_username", BOT_USERNAME)
     username = username if re.fullmatch(r"[A-Za-z0-9_]{5,32}", username or "") else ""
-    return {"telegram_only": True, "bot_url": f"https://t.me/{username}" if username else None}
+    bot_url = f"https://t.me/{username}" if username else None
+    suffix = "?startapp" if getattr(app.state, "telegram_main_app", False) else "?start=app"
+    return {"telegram_only": True, "bot_url": bot_url,
+            "mini_app_url": bot_url + suffix if bot_url else None,
+            "main_app_enabled": getattr(app.state, "telegram_main_app", False)}
 
 
 @app.post("/api/admin/skins")
@@ -509,7 +522,7 @@ async def start_handler(message: Message, bot: Bot):
             [
                 InlineKeyboardButton(
                     text="SkinSavo ochish",
-                    web_app=WebAppInfo(url=WEBAPP_URL),
+                    web_app=WebAppInfo(url=mini_app_launch_url()),
                 )
             ]
         ],

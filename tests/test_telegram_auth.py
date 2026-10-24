@@ -125,9 +125,20 @@ class TelegramAuthTests(unittest.TestCase):
         message = message.as_(bot)
         asyncio.run(main.start_handler(message, bot))
         call = bot.call_args.args[0]
-        self.assertEqual(call.reply_markup.inline_keyboard[0][0].web_app.url, main.WEBAPP_URL)
+        self.assertEqual(call.reply_markup.inline_keyboard[0][0].web_app.url, main.mini_app_launch_url())
         with main.db() as conn:
             self.assertEqual(conn.execute("SELECT first_name FROM users WHERE telegram_id='123'").fetchone()[0], 'Bot User')
+
+    def test_launch_url_preserves_query_and_clears_stale_fragment(self):
+        main.WEBAPP_URL = 'https://skinsavo.example/?lang=uz#old-section'
+        self.assertEqual(main.mini_app_launch_url(), 'https://skinsavo.example/?lang=uz&miniapp=2')
+
+    def test_main_app_link_only_when_telegram_confirms_configuration(self):
+        main.app.state.bot_username = 'SkinSavoTestBot'
+        main.app.state.telegram_main_app = False
+        self.assertEqual(self.client.get('/api/app-config').json()['mini_app_url'], 'https://t.me/SkinSavoTestBot?start=app')
+        main.app.state.telegram_main_app = True
+        self.assertEqual(self.client.get('/api/app-config').json()['mini_app_url'], 'https://t.me/SkinSavoTestBot?startapp')
 
 
 if __name__ == '__main__':

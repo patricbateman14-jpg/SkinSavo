@@ -29,6 +29,12 @@ are preserved. Usernames and photos are optional. Client-supplied profile fields
 are ignored. No phone number, password, or contact permission is requested.
 The gate remains until the backend confirms the Telegram signature. Forged,
 expired, duplicated or malformed credentials are rejected by the server.
+The branded splash remains for at least three seconds and waits longer for a
+slow profile response. Telegram launch data is re-read during initialization;
+signed data in the launch fragment/query can also be recovered if SDK setup is
+delayed. The official Telegram SDK is served locally from static/telegram-web-app.js.
+Plain Telegram browser tabs and old reply-keyboard buttons do not provide Mini
+App credentials: use the bot's SkinSavo menu button or a configured Main Mini App.
 
 New accounts start at zero. Explicit demo top-ups add simulated funds. Demo
 purchases validate stock and balance in a SQLite write transaction and persist
@@ -58,6 +64,7 @@ node --check static/app.js
 npm.cmd install --no-save --package-lock=false playwright
 # In another terminal: .\.venv\Scripts\python.exe scripts/serve-browser-test.py
 node scripts/check-browser.cjs
+node scripts/check-telegram-entry.cjs
 ```
 
 Browser checks require installed Chrome on Windows and the isolated test launcher

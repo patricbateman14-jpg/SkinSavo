@@ -35,7 +35,7 @@ const crypto = require("crypto");
     return new URLSearchParams(fields).toString();
   }
   let telegramData = "";
-  await page.route("https://telegram.org/**", (route) =>
+  await page.route("**/static/telegram-web-app.js*", (route) =>
     route.fulfill({
       contentType: "application/javascript",
       body: `window.Telegram={WebApp:{initData:${JSON.stringify(telegramData)},ready(){},expand(){},setHeaderColor(){}}};`,
