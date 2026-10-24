@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
   const esc = (value) =>
@@ -382,7 +382,7 @@
         });
         await loadUser();
         $("modal").close();
-        toast("Demo xarid saqlandi. Haqiqiy skin transferi amalga oshmadi.");
+        toast("Demo xarid saqlandi.");
         loadSkins();
       } catch (e) {
         toast(e.message);
