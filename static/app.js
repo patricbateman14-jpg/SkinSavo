@@ -1,70 +1,8 @@
-(() => {
+﻿(() => {
   "use strict";
-
-  const tg = window.Telegram?.WebApp;
-  tg?.ready();
-  tg?.expand();
-  try {
-    tg?.setHeaderColor("#050505");
-    tg?.setBackgroundColor("#050505");
-  } catch (_) {}
-
   const $ = (id) => document.getElementById(id);
-
-  const state = {
-    query: "",
-    sort: "featured",
-    userId: "",
-    username: "",
-    balance: 250,
-    skins: [],
-    sortIndex: 0,
-    selectedAmount: 25,
-    loading: false,
-  };
-
-  const SORT_OPTIONS = [
-    { key: "featured", label: "Tavsiya" },
-    { key: "price_asc", label: "Arzon" },
-    { key: "price_desc", label: "Qimmat" },
-    { key: "name", label: "Nom" },
-    { key: "stock", label: "Qoldiq" },
-  ];
-
-  const RARITY_CLASS = {
-    Covert: "rarity-covert",
-    Classified: "rarity-classified",
-    Restricted: "rarity-restricted",
-    "Mil-Spec": "rarity-milspec",
-    Industrial: "rarity-industrial",
-    Consumer: "rarity-consumer",
-    Extraordinary: "rarity-extraordinary",
-  };
-
-  // ---------- Utils ----------
-  const params = new URLSearchParams(location.search);
-  const demoId =
-    params.get("user_id") ||
-    tg?.initDataUnsafe?.user?.id ||
-    localStorage.getItem("skinsavo_demo_user") ||
-    "demo-guest";
-
-  state.userId = String(demoId);
-  state.username =
-    tg?.initDataUnsafe?.user?.username ||
-    tg?.initDataUnsafe?.user?.first_name ||
-    "Guest";
-
-  localStorage.setItem("skinsavo_demo_user", state.userId);
-
-  const money = (n) =>
-    Number(n || 0).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-
-  const escapeHtml = (s) =>
-    String(s ?? "").replace(
+  const esc = (value) =>
+    String(value ?? "").replace(
       /[&<>"']/g,
       (c) =>
         ({
@@ -73,526 +11,529 @@
           ">": "&gt;",
           '"': "&quot;",
           "'": "&#39;",
-        })[c]
+        })[c],
     );
-
+  const money = (n) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(Number(n));
+  const paths = {
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/>',
+    user: '<circle cx="12" cy="8" r="3.5"/><path d="M5 21c0-8 14-8 14 0"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    close: '<path d="m6 6 12 12M6 18 18 6"/>',
+    arrow: '<path d="M4 12h15m-6-6 6 6-6 6"/>',
+    search: '<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>',
+    shield:
+      '<path d="m12 3 8 4v5c0 5-8 9-8 9s-8-4-8-9V7z"/><path d="m8 12 3 3 5-6"/>',
+    bolt: '<path d="m13 2-9 12h7l-1 8 10-13h-8z"/>',
+    headphones:
+      '<path d="M4 14v-3a8 8 0 0 1 16 0v3M4 12h3v8H4zM17 12h3v8h-3z"/>',
+    filter: '<path d="M4 6h16M7 12h10M10 18h4"/>',
+    reset: '<path d="M4 10a8 8 0 1 1 0 6M4 3v7h7"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>',
+    grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+    weapon: '<path d="m3 9 15-3 3 3-3 2-6 1-2 7H7l1-7-5 1zM13 12l2 4h3"/>',
+    knife: '<path d="M4 20 20 4c1 9-4 12-10 11l-4 7z"/>',
+    trade: '<path d="M3 7h17l-5-5M21 17H4l5 5M20 7l-5 5M4 17l5-5"/>',
+  };
+  const icon = (name) =>
+    `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.weapon}</svg>`;
+  function icons(root = document) {
+    root
+      .querySelectorAll("[data-icon]")
+      .forEach((el) => (el.innerHTML = icon(el.dataset.icon)));
+  }
+  icons();
+  const tg = window.Telegram?.WebApp;
+  try {
+    tg?.ready();
+    tg?.expand();
+  } catch {}
+  const state = {
+    category: "",
+    rarity: [],
+    condition: [],
+    q: "",
+    sort: "featured",
+    offset: 0,
+    items: [],
+    session: null,
+    balance: null,
+    manifest: {},
+  };
+  const categories = [
+    "",
+    "Rifles",
+    "Snipers",
+    "SMGs",
+    "Shotguns",
+    "Pistols",
+    "Knives",
+    "Gloves",
+  ];
+  const rarities = [
+    "Consumer Grade",
+    "Industrial Grade",
+    "Mil-Spec",
+    "Restricted",
+    "Classified",
+    "Covert",
+    "Exceedingly Rare",
+    "Contraband",
+  ];
+  const conditions = [
+    "Factory New",
+    "Minimal Wear",
+    "Field-Tested",
+    "Well-Worn",
+    "Battle-Scarred",
+  ];
+  $("categorySelect").innerHTML = categories
+    .map((c) => `<option value="${c}">${c || "Barcha kategoriyalar"}</option>`)
+    .join("");
+  function renderCategories(counts = {}, total) {
+    $("categoryList").innerHTML = categories
+      .map(
+        (c) =>
+          `<button class="category ${state.category === c ? "active" : ""}" data-category="${c}" aria-pressed="${state.category === c}">${icon(!c ? "grid" : c === "Knives" ? "knife" : "weapon")}<span>${c || "Barchasi"}</span><span class="count">${c ? (counts[c] ?? "—") : (total ?? "—")}</span></button>`,
+      )
+      .join("");
+  }
+  renderCategories();
+  for (const [key, values] of [
+    ["rarity", rarities],
+    ["condition", conditions],
+  ]) {
+    $(key + "List").innerHTML = values
+      .map(
+        (value) =>
+          `<label><input type="checkbox" value="${value}" data-filter="${key}">${value}</label>`,
+      )
+      .join("");
+  }
   let toastTimer;
   function toast(message) {
-    const el = $("toast");
-    el.textContent = message;
-    el.classList.add("show");
+    $("toast").textContent = message;
+    $("toast").classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove("show"), 2800);
+    toastTimer = setTimeout(() => $("toast").classList.remove("show"), 3500);
   }
-
   async function api(path, options = {}) {
-    const r = await fetch(path, {
+    const response = await fetch(path, {
+      ...options,
       headers: {
         "Content-Type": "application/json",
         "X-Telegram-Init-Data": tg?.initData || "",
-        ...(options.headers || {}),
+        ...options.headers,
       },
-      ...options,
     });
-    if (!r.ok) {
-      const data = await r.json().catch(() => ({}));
-      throw new Error(data.detail || "Server bilan aloqa xatosi");
-    }
-    return r.json();
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new Error(
+        typeof data.detail === "string"
+          ? data.detail
+          : "So‘rov bajarilmadi. Qayta urinib ko‘ring.",
+      );
+    return data;
   }
-
-  // ---------- Admin panel ----------
-  async function initAdminAccess() {
+  function imageUrl(item) {
+    const local = state.manifest[item.name];
+    if (local) return local;
+    const value = String(item.image || "");
+    return /^(https?:\/\/|\/static\/)/.test(value) &&
+      !value.includes("placehold.co")
+      ? value
+      : "/static/assets/art-unavailable.svg";
+  }
+  function imageFallbacks(root = document) {
+    root.querySelectorAll("img").forEach((img) => {
+      img.addEventListener(
+        "error",
+        () => {
+          img.src = "/static/assets/art-unavailable.svg";
+          img.alt = "Rasm vaqtincha mavjud emas";
+        },
+        { once: true },
+      );
+    });
+  }
+  let requestId = 0,
+    controller;
+  async function loadSkins(append = false) {
+    const id = ++requestId;
+    controller?.abort();
+    controller = new AbortController();
+    if (!append) {
+      state.offset = 0;
+      state.items = [];
+      $("skinGrid").innerHTML = '<p class="empty">Katalog yuklanmoqda…</p>';
+    }
+    $("skinGrid").setAttribute("aria-busy", "true");
+    $("loadMore").disabled = true;
+    const params = new URLSearchParams({
+      q: state.q,
+      category: state.category,
+      rarity: state.rarity.join(","),
+      condition: state.condition.join(","),
+      sort: state.sort,
+      limit: "100",
+      offset: String(state.offset),
+    });
     try {
-      const session = await api("/api/session");
-      if (!session.is_admin) return;
-      const actions = $(".header-actions");
-      if (!actions || $("adminPanelBtn")) return;
-      const button = document.createElement("button");
-      button.id = "adminPanelBtn";
-      button.className = "icon-btn";
-      button.type = "button";
-      button.title = "Admin panel";
-      button.setAttribute("aria-label", "Admin panel");
-      button.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 7v5c0 4.5 3.2 7.5 8 9 4.8-1.5 8-4.5 8-9V7z"/><path d="m9 12 2 2 4-4"/></svg>';
-      button.addEventListener("click", openAdminPanel);
-      actions.prepend(button);
-    } catch (_) {}
-  }
-
-  function openAdminPanel() {
-    openModal("");
-    $("modalContent").replaceChildren($("adminPanelTemplate").content.cloneNode(true));
-    $("adminSkinForm").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = event.currentTarget;
-      const button = $("adminSaveSkin");
-      const payload = Object.fromEntries(new FormData(form).entries());
-      payload.price = Number(payload.price);
-      payload.stock = Number(payload.stock);
-      button.disabled = true;
-      button.textContent = "Saqlanmoqda...";
-      try {
-        await api("/api/admin/skins", { method: "POST", body: JSON.stringify(payload) });
-        closeModal();
-        toast("Skin katalogga joylandi");
-        await loadSkins();
-      } catch (error) {
+      const data = await api("/api/skins?" + params, {
+        signal: controller.signal,
+      });
+      if (id !== requestId) return;
+      state.items = append ? [...state.items, ...data.items] : data.items;
+      renderCategories(data.categories, data.catalog_total);
+      $("skinCount").textContent = `(${data.total})`;
+      $("availableStat").textContent = data.catalog_total;
+      $("activeFilters").textContent = [
+        state.q && `Qidiruv: ${state.q}`,
+        state.category,
+        ...state.rarity,
+        ...state.condition,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      $("skinGrid").innerHTML = state.items.length
+        ? state.items
+            .map(
+              (s) =>
+                `<article class="skin-card"><div class="skin-image"><span class="skin-badge">${esc(s.rarity)}</span><span class="stock-badge">${s.stock > 0 ? esc(s.stock) + " dona" : "Tugagan"}</span><img src="${esc(imageUrl(s))}" alt="${esc(s.name)}" loading="lazy" width="240" height="160"></div><div class="skin-info"><h3>${esc(s.name)}</h3><p class="skin-meta">${esc(s.condition)}</p><div class="skin-bottom"><strong class="price">${money(s.price)}</strong><button class="view-btn" data-detail="${s.id}" aria-label="${esc(s.name)} — ko‘rish">Ko‘rish ↗</button></div></div></article>`,
+            )
+            .join("")
+        : '<div class="empty"><strong>Skinlar topilmadi</strong>Filtrlarni o‘zgartiring yoki keyinroq qayting.<br><button class="secondary" data-action="reset">Filtrlarni tozalash</button></div>';
+      $("loadMore").hidden = state.items.length >= data.total;
+      imageFallbacks($("skinGrid"));
+    } catch (error) {
+      if (error.name !== "AbortError" && id === requestId) {
+        $("skinGrid").innerHTML =
+          '<div class="empty"><strong>Katalogni yuklab bo‘lmadi</strong><button class="secondary" data-action="retry">Qayta urinish</button></div>';
         toast(error.message);
-        button.disabled = false;
-        button.textContent = "Skinni joylash";
       }
-    });
-  }
-
-  // ---------- Theme ----------
-  function initTheme() {
-    const saved = localStorage.getItem("skinsavo_theme");
-    if (saved === "light") {
-      document.documentElement.setAttribute("data-theme", "light");
-      $("themeBtn").innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>';
+    } finally {
+      if (id === requestId) {
+        $("skinGrid").setAttribute("aria-busy", "false");
+        $("loadMore").disabled = false;
+      }
     }
   }
-
-  $("themeBtn").addEventListener("click", () => {
-    const isLight = document.documentElement.getAttribute("data-theme") === "light";
-    if (isLight) {
-      document.documentElement.removeAttribute("data-theme");
-      localStorage.setItem("skinsavo_theme", "dark");
-      $("themeBtn").innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/></svg>';
-      try {
-        tg?.setHeaderColor("#050505");
-        tg?.setBackgroundColor("#050505");
-      } catch (_) {}
-    } else {
-      document.documentElement.setAttribute("data-theme", "light");
-      localStorage.setItem("skinsavo_theme", "light");
-      $("themeBtn").innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>';
-      try {
-        tg?.setHeaderColor("#f5f6f8");
-        tg?.setBackgroundColor("#f5f6f8");
-      } catch (_) {}
+  let previousFocus;
+  function modal(html) {
+    if (!$("modal").open) previousFocus = document.activeElement;
+    $("modalContent").innerHTML = html;
+    icons($("modalContent"));
+    imageFallbacks($("modalContent"));
+    if (!$("modal").open) $("modal").showModal();
+    $("modalClose").focus();
+  }
+  $("modalClose").onclick = () => $("modal").close();
+  $("modal").addEventListener("close", () => previousFocus?.focus());
+  $("modal").addEventListener("click", (event) => {
+    if (event.target === $("modal")) {
+      const r = $("modal").getBoundingClientRect();
+      if (
+        event.clientX < r.left ||
+        event.clientX > r.right ||
+        event.clientY < r.top ||
+        event.clientY > r.bottom
+      )
+        $("modal").close();
     }
   });
-
-  // ---------- User & Balance ----------
+  function requireSession() {
+    if (state.session?.authenticated) return true;
+    modal(
+      '<span class="eyebrow">TELEGRAM SIGN IN</span><h2 id="modalTitle">Telegram orqali kiring</h2><p>Shaxsiy balans, demo xarid va inventardan foydalanish uchun SkinSavo’ni Telegram botidagi Mini App tugmasi orqali oching. Katalogni hisob ochmasdan ko‘rish mumkin.</p>',
+    );
+    return false;
+  }
   async function loadUser() {
+    if (!state.session?.authenticated) return;
+    const user = await api(
+      "/api/users/" + encodeURIComponent(state.session.telegram_id),
+    );
+    state.balance = user.balance;
+    $("balanceValue").textContent = money(user.balance);
+  }
+  async function detail(id) {
     try {
-      const u = await api(
-        `/api/users/${encodeURIComponent(state.userId)}?username=${encodeURIComponent(state.username)}`
+      const s = await api("/api/skins/" + id);
+      modal(
+        `<span class="eyebrow">${esc(s.rarity)} · DEMO LISTING</span><h2 id="modalTitle">${esc(s.name)}</h2><img class="modal-image" src="${esc(imageUrl(s))}" alt="${esc(s.name)}"><p>${esc(s.condition)} · ${esc(s.stock)} dona</p><p>${esc(s.description)}</p><div class="modal-price">${money(s.price)}</div><p>Faqat demo mablag‘. Haqiqiy to‘lov va Steam transferi mavjud emas.</p><button class="full-btn" data-purchase="${s.id}" ${s.stock < 1 ? "disabled" : ""}>${s.stock > 0 ? "Demo xarid qilish" : "Qoldiq tugagan"}</button>`,
       );
-      state.balance = u.balance;
-    } catch (_) {
-      state.balance = 250;
-    }
-    renderBalance();
-  }
-
-  function renderBalance() {
-    $("balanceValue").innerHTML = `${money(state.balance)} <small>USD</small>`;
-  }
-
-  // ---------- Header skin gallery ----------
-  const FEATURED_BRAND_SKINS = [
-    { match: "AWP | Gungnir", label: "AWP Gungnir" },
-    { match: "AWP | Dragon Lore", label: "AWP Dragon Lore" },
-    { match: "M4A4 | Howl", label: "M4A4 Howl" },
-    { match: "AK-47 | Wild Lotus", label: "AK-47 Wild Lotus" },
-  ];
-
-  function renderBrandSkinGallery(items) {
-    const strip = $("brandSkinStrip");
-    if (!strip || !Array.isArray(items)) return;
-    const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
-    const chosen = FEATURED_BRAND_SKINS.map((featured) => {
-      const wanted = normalize(featured.match);
-      const found = items.find((item) =>
-        normalize(item.name).includes(wanted) && item.image
-      );
-      return found ? { ...featured, image: found.image } : null;
-    }).filter(Boolean);
-    // If API naming differs, still show real skin artwork rather than leave the header blank.
-    const finalItems = chosen.length >= 2 ? chosen : items
-      .filter((item) => item && item.image && item.name)
-      .filter((item) => /dragon lore|gungnir|howl|wild lotus/i.test(item.name))
-      .slice(0, 4)
-      .map((item) => ({ label: item.name, match: item.name, image: item.image }));
-    if (!finalItems.length) return;
-    const heroImage = $("heroSkinImage");
-    if (heroImage && finalItems[0]?.image) heroImage.src = finalItems[0].image;
-    strip.replaceChildren();
-    finalItems.forEach((skin) => {
-      const link = document.createElement("a");
-      link.className = "brand-skin-thumb";
-      link.href = "https://steamcommunity.com/market/search?appid=730&q=" + encodeURIComponent(skin.match);
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.title = skin.label;
-      link.setAttribute("aria-label", skin.label + " — Steam Market");
-      const img = document.createElement("img");
-      img.src = skin.image;
-      img.alt = skin.label;
-      img.loading = "eager";
-      img.onerror = () => link.remove();
-      link.appendChild(img);
-      strip.appendChild(link);
-    });
-  }
-
-  async function loadBrandSkinGallery() {
-    try {
-      const response = await fetch("https://bymykel.github.io/CSGO-API/api/en/skins.json", { cache: "force-cache" });
-      if (!response.ok) throw new Error("Skin images unavailable");
-      const items = await response.json();
-      renderBrandSkinGallery(items);
-    } catch (_) {
-      // Fall back to matching skins already loaded from the site's own catalogue.
-      renderBrandSkinGallery(state.skins);
-    }
-  }
-
-  // ---------- Skins ----------
-  function showSkeleton() {
-    $("skinGrid").innerHTML = `
-      <div class="skeleton-grid">
-        <div class="skeleton-card"></div>
-        <div class="skeleton-card"></div>
-        <div class="skeleton-card"></div>
-        <div class="skeleton-card"></div>
-      </div>`;
-  }
-
-  async function loadSkins() {
-    if (state.loading) return;
-    state.loading = true;
-    showSkeleton();
-
-    try {
-      const data = await api(
-        `/api/skins?q=${encodeURIComponent(state.query)}&sort=${state.sort}&limit=100`
-      );
-      state.skins = data.items || [];
-      $("skinCount").textContent = data.total ?? state.skins.length;
-      renderSkins();
-      if ($("brandSkinStrip")?.querySelector(".brand-skin-loading")) renderBrandSkinGallery(state.skins);
-    } catch (e) {
-      $("skinGrid").innerHTML = `
-        <div class="empty">
-          Katalogni yuklab bo‘lmadi.<br>
-          <span style="font-size:12px;opacity:.7">${escapeHtml(e.message)}</span>
-        </div>`;
-      $("skinCount").textContent = "0";
-    } finally {
-      state.loading = false;
-    }
-  }
-
-  function renderSkins() {
-    const grid = $("skinGrid");
-    if (!state.skins.length) {
-      grid.innerHTML = `
-        <div class="empty">
-          Hech narsa topilmadi.<br>
-          <span style="font-size:12px;opacity:.7">Boshqa so‘z bilan qidirib ko‘ring.</span>
-        </div>`;
-      return;
-    }
-
-    grid.innerHTML = state.skins
-      .map((s, i) => {
-        const rarityCls = RARITY_CLASS[s.rarity] || "";
-        const stockCls = s.stock > 0 ? "" : "out";
-        const stockText = s.stock > 0 ? `<svg class="icon stock-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></svg> ${s.stock} ta` : "Tugagan";
-        return `
-        <article class="skin-card" style="animation-delay:${Math.min(i * 40, 320)}ms">
-          <div class="skin-image">
-            <img
-              src="${escapeHtml(s.image)}"
-              alt="${escapeHtml(s.name)}"
-              loading="lazy"
-              onerror="this.src='https://placehold.co/640x420/080808/ffffff?text=CS2+SKIN'"
-            >
-            <span class="skin-badge ${rarityCls}">${escapeHtml(s.rarity)}</span>
-            <span class="stock-badge ${stockCls}">${stockText}</span>
-          </div>
-          <div class="skin-info">
-            <h3 title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</h3>
-            <div class="skin-meta">${escapeHtml(s.condition)} · ${escapeHtml(s.weapon)}</div>
-            <div class="skin-bottom">
-              <div class="price">$${money(s.price)}</div>
-              <button class="view-btn" data-skin="${s.id}">Ko‘rish <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></button>
-            </div>
-          </div>
-        </article>`;
-      })
-      .join("");
-
-    grid.querySelectorAll("[data-skin]").forEach((btn) => {
-      btn.addEventListener("click", () => openSkin(Number(btn.dataset.skin)));
-    });
-  }
-
-  // ---------- Modal ----------
-  function openModal(html) {
-    $("modalContent").innerHTML = html;
-    $("modalBackdrop").classList.remove("hidden");
-    document.body.style.overflow = "hidden";
-  }
-
-  function closeModal() {
-    $("modalBackdrop").classList.add("hidden");
-    document.body.style.overflow = "";
-  }
-
-  async function openSkin(id) {
-    let s = state.skins.find((x) => x.id === id);
-    if (!s) {
-      try {
-        s = await api(`/api/skins/${id}`);
-      } catch {
-        return toast("Skin topilmadi");
-      }
-    }
-    if (!s) return toast("Skin topilmadi");
-
-    const rarityCls = RARITY_CLASS[s.rarity] || "";
-
-    openModal(`
-      <span class="eyebrow ${rarityCls}">${escapeHtml(s.rarity)} · CS2 SKIN</span>
-      <h2 id="modalTitle">${escapeHtml(s.name)}</h2>
-      <img class="modal-skin-image" src="${escapeHtml(s.image)}" alt="${escapeHtml(s.name)}"
-           onerror="this.src='https://placehold.co/640x420/080808/ffffff?text=CS2+SKIN'">
-      <p>${escapeHtml(s.description || "Demo skin tavsifi.")}</p>
-      <div class="history-row"><span>Holati</span><strong>${escapeHtml(s.condition)}</strong></div>
-      <div class="history-row"><span>Qurol</span><strong>${escapeHtml(s.weapon)}</strong></div>
-      <div class="history-row"><span>Qoldiq</span><strong>${s.stock > 0 ? s.stock + " ta" : "Tugagan"}</strong></div>
-      <div class="modal-price">$${money(s.price)} <span style="font-size:13px;color:var(--muted);font-weight:600">USD</span></div>
-      <button class="full-btn" id="buyDemoBtn" ${s.stock <= 0 ? "disabled" : ""}>
-        ${s.stock <= 0 ? "Tugagan" : "Demo xarid"}
-      </button>
-      <p style="font-size:11px;margin-top:12px;margin-bottom:0;color:var(--muted)">
-        Demo rejim: haqiqiy xarid yoki skin transferi amalga oshmaydi.
-      </p>
-    `);
-
-    $("buyDemoBtn")?.addEventListener("click", () => {
-      if (s.stock <= 0) return;
-      toast("Demo rejimda xarid vaqtincha o‘chirilgan.");
-    });
-  }
-
-  function openTopup() {
-    state.selectedAmount = 25;
-    openModal(`
-      <span class="eyebrow">DEMO HAMYON</span>
-      <h2 id="modalTitle">Balansni to‘ldirish</h2>
-      <p>Sinov uchun demo mablag‘ qo‘shing. Bu haqiqiy to‘lov emas.</p>
-      <div class="amount-row">
-        ${[10, 25, 50, 100]
-          .map(
-            (n) =>
-              `<button class="amount-option ${n === 25 ? "selected" : ""}" data-amount="${n}">$${n}</button>`
-          )
-          .join("")}
-      </div>
-      <label class="field-label" for="customAmount">Boshqa miqdor (USD)</label>
-      <input class="modal-input" id="customAmount" type="number" min="1" max="10000" step="1" value="25" inputmode="decimal">
-      <button class="full-btn" id="confirmTopup">+ Demo balans qo‘shish</button>
-    `);
-
-    document.querySelectorAll("[data-amount]").forEach((b) => {
-      b.addEventListener("click", () => {
-        state.selectedAmount = Number(b.dataset.amount);
-        $("customAmount").value = state.selectedAmount;
-        document.querySelectorAll("[data-amount]").forEach((x) =>
-          x.classList.toggle("selected", x === b)
-        );
-      });
-    });
-
-    $("customAmount").addEventListener("input", () => {
-      state.selectedAmount = Number($("customAmount").value);
-      document.querySelectorAll("[data-amount]").forEach((x) =>
-        x.classList.toggle(
-          "selected",
-          Number(x.dataset.amount) === state.selectedAmount
-        )
-      );
-    });
-
-    $("confirmTopup").addEventListener("click", async () => {
-      const amount = Number($("customAmount").value);
-      if (!Number.isFinite(amount) || amount <= 0 || amount > 10000) {
-        return toast("1 dan 10 000 USD gacha kiriting");
-      }
-      const btn = $("confirmTopup");
-      btn.disabled = true;
-      btn.textContent = "Kutilmoqda...";
-      try {
-        const u = await api("/api/demo/topup", {
-          method: "POST",
-          body: JSON.stringify({ telegram_id: state.userId, amount }),
-        });
-        state.balance = u.balance;
-        renderBalance();
-        closeModal();
-        toast("Demo balans muvaffaqiyatli qo‘shildi");
-        try {
-          tg?.HapticFeedback?.notificationOccurred("success");
-        } catch (_) {}
-      } catch (e) {
-        toast(e.message);
-        btn.disabled = false;
-        btn.textContent = "+ Demo balans qo‘shish";
-      }
-    });
-  }
-
-  async function openHistory() {
-    try {
-      const data = await api(
-        `/api/users/${encodeURIComponent(state.userId)}/history`
-      );
-      const items = data.items || [];
-      openModal(`
-        <span class="eyebrow">HISOB HARAKATLARI</span>
-        <h2 id="modalTitle">Balans tarixi</h2>
-        ${
-          items.length
-            ? items
-                .map(
-                  (x) => `
-            <div class="history-row">
-              <div>
-                ${escapeHtml(x.note || x.event_type)}
-                <small>${escapeHtml(x.created_at || "")}</small>
-              </div>
-              <strong class="positive">+$${money(x.amount)}</strong>
-            </div>`
-                )
-                .join("")
-            : `<p>Hozircha tarix bo‘sh. Demo balans to‘ldirishni sinab ko‘ring.</p>`
-        }
-      `);
     } catch (e) {
       toast(e.message);
     }
   }
-
-  function openProfile() {
-    openModal(`
-      <span class="eyebrow">SKINSAVO HISOBI</span>
-      <h2 id="modalTitle">Salom, ${escapeHtml(state.username)}!</h2>
-      <p>Telegram ID: <strong>${escapeHtml(state.userId)}</strong></p>
-      <div class="history-row"><span>Demo balans</span><strong>$${money(state.balance)}</strong></div>
-      <div class="history-row"><span>Hisob turi</span><strong>Demo</strong></div>
-      <p style="font-size:12px;color:var(--muted)">Haqiqiy pul, to‘lovlar yoki skinlar savdosi ulangan emas.</p>
-      <button class="full-btn" id="profileTopup">Balansni to‘ldirish</button>
-    `);
-    $("profileTopup").addEventListener("click", openTopup);
+  function topup() {
+    if (!requireSession()) return;
+    modal(
+      '<span class="eyebrow">DEMO HAMYON</span><h2 id="modalTitle">Demo balans qo‘shish</h2><p>Bu sinov mablag‘i. Haqiqiy pul olinmaydi va yechib bo‘lmaydi.</p><form id="topupForm"><label class="field-label" for="amount">Miqdor (USD)</label><input class="modal-input" id="amount" type="number" min="0.01" max="10000" step="0.01" value="25" required><button class="full-btn" type="submit">Demo balans qo‘shish</button></form>',
+    );
   }
-
-  // ---------- Events ----------
-  $("modalClose").addEventListener("click", closeModal);
-  $("modalBackdrop").addEventListener("click", (e) => {
-    if (e.target === $("modalBackdrop")) closeModal();
+  function profile() {
+    if (!requireSession()) return;
+    modal(
+      `<span class="eyebrow">SKINSAVO HISOBI</span><h2 id="modalTitle">Salom, ${esc(state.session.username || "foydalanuvchi")}!</h2><p>Telegram ID: ${esc(state.session.telegram_id)}</p><div class="history-row"><span>Demo balans</span><strong>${money(state.balance)}</strong></div><p>Haqiqiy to‘lovlar yoki skin transferi ulanmagan.</p><button class="full-btn" data-action="topup">Demo balans qo‘shish</button><button class="full-btn" data-action="history">Balans tarixi</button>${state.session.is_admin ? '<button class="full-btn" data-action="admin">Administrator paneli</button>' : ""}`,
+    );
+  }
+  async function inventory() {
+    if (!requireSession()) return;
+    try {
+      const data = await api("/api/inventory");
+      modal(
+        `<span class="eyebrow">DEMO INVENTAR</span><h2 id="modalTitle">Sizning skinlaringiz</h2><p>Demo xaridlar bazada saqlanadi. Sotish demo balansni qaytaradi, haqiqiy skin jo‘natilmaydi.</p>${data.items.length ? data.items.map((i) => `<div class="inventory-row"><img src="${esc(imageUrl(i))}" alt="${esc(i.name)}"><div><strong>${esc(i.name)}</strong><p>${esc(i.condition)} · ${money(i.price)}</p></div>${i.status === "owned" ? `<button class="secondary" data-sell="${i.id}">Demo sotish</button>` : "<small>Sotilgan</small>"}</div>`).join("") : "<p>Inventar bo‘sh. Katalogdan birinchi demo skinni tanlang.</p>"}`,
+      );
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+  async function history() {
+    if (!requireSession()) return;
+    try {
+      const data = await api(
+        "/api/users/" + state.session.telegram_id + "/history",
+      );
+      modal(
+        `<span class="eyebrow">DEMO HISOB</span><h2 id="modalTitle">Balans tarixi</h2>${data.items.length ? data.items.map((i) => `<div class="history-row"><div>${esc(i.note || i.event_type)}<small>${esc(i.created_at)}</small></div><strong>${money(i.amount)}</strong></div>`).join("") : "<p>Hozircha tarix bo‘sh.</p>"}`,
+      );
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+  function admin() {
+    if (!state.session?.is_admin) return;
+    const fields = [
+      ["name", "Skin nomi", "text"],
+      ["weapon", "Qurol", "text"],
+      ["skin", "Finish nomi", "text"],
+      ["rarity", "Rarity", "text"],
+      ["condition", "Holati", "text"],
+      ["price", "Narx (USD)", "number"],
+      ["stock", "Soni", "number"],
+      ["image", "HTTPS rasm URL", "url"],
+      ["description", "Tavsif", "text"],
+    ];
+    modal(
+      '<span class="eyebrow">ADMINISTRATOR</span><h2 id="modalTitle">Yangi skin joylash</h2><form id="adminForm">' +
+        fields
+          .map(
+            ([name, label, type]) =>
+              `<label class="field-label" for="admin-${name}">${label}</label><input class="modal-input" id="admin-${name}" name="${name}" type="${type}" ${type === "number" ? 'min="0" step="' + (name === "stock" ? "1" : "0.01") + '"' : ""} ${name === "description" ? "" : "required"}>`,
+          )
+          .join("") +
+        '<button class="full-btn" type="submit">Skinni joylash</button></form>',
+    );
+  }
+  function reset() {
+    clearTimeout(searchTimer);
+    Object.assign(state, {
+      q: "",
+      category: "",
+      rarity: [],
+      condition: [],
+      sort: "featured",
+    });
+    $("searchInput").value = "";
+    $("categorySelect").value = "";
+    $("sortSelect").value = "featured";
+    document
+      .querySelectorAll("[data-filter]")
+      .forEach((el) => (el.checked = false));
+    loadSkins();
+  }
+  const actions = {
+    inventory,
+    profile,
+    topup,
+    history,
+    admin,
+    reset,
+    retry: () => loadSkins(),
+  };
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    if (button.dataset.action) {
+      actions[button.dataset.action]?.();
+      return;
+    }
+    if (button.dataset.category !== undefined) {
+      state.category = button.dataset.category;
+      $("categorySelect").value = state.category;
+      loadSkins();
+      return;
+    }
+    if (button.dataset.detail) {
+      detail(button.dataset.detail);
+      return;
+    }
+    if (button.dataset.purchase) {
+      if (!requireSession()) return;
+      button.disabled = true;
+      try {
+        await api("/api/demo/purchase", {
+          method: "POST",
+          body: JSON.stringify({ skin_id: Number(button.dataset.purchase) }),
+        });
+        await loadUser();
+        $("modal").close();
+        toast("Demo xarid saqlandi. Haqiqiy skin transferi amalga oshmadi.");
+        loadSkins();
+      } catch (e) {
+        toast(e.message);
+        button.disabled = false;
+      }
+      return;
+    }
+    if (button.dataset.sell) {
+      button.disabled = true;
+      try {
+        await api("/api/demo/inventory/" + button.dataset.sell + "/sell", {
+          method: "POST",
+        });
+        await loadUser();
+        await inventory();
+        loadSkins();
+        toast("Demo sotuv saqlandi");
+      } catch (e) {
+        toast(e.message);
+        button.disabled = false;
+      }
+    }
   });
-
+  document.addEventListener("submit", async (event) => {
+    if (!["topupForm", "adminForm"].includes(event.target.id)) return;
+    event.preventDefault();
+    const button = event.target.querySelector("button[type=submit]");
+    button.disabled = true;
+    try {
+      if (event.target.id === "topupForm") {
+        await api("/api/demo/topup", {
+          method: "POST",
+          body: JSON.stringify({
+            telegram_id: state.session.telegram_id,
+            amount: Number($("amount").value),
+          }),
+        });
+        await loadUser();
+        toast("Demo balans yangilandi. Haqiqiy to‘lov bo‘lmadi.");
+      } else {
+        const payload = Object.fromEntries(new FormData(event.target));
+        payload.price = Number(payload.price);
+        payload.stock = Number(payload.stock);
+        await api("/api/admin/skins", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        loadSkins();
+        toast("Skin saqlandi");
+      }
+      $("modal").close();
+    } catch (e) {
+      toast(e.message);
+      button.disabled = false;
+    }
+  });
+  $("filterForm").onsubmit = (e) => e.preventDefault();
+  let searchTimer;
+  $("searchInput").oninput = () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      state.q = $("searchInput").value.trim();
+      loadSkins();
+    }, 250);
+  };
+  $("categorySelect").onchange = () => {
+    state.category = $("categorySelect").value;
+    loadSkins();
+  };
+  $("sortSelect").onchange = () => {
+    state.sort = $("sortSelect").value;
+    loadSkins();
+  };
+  document.querySelectorAll("[data-filter]").forEach(
+    (el) =>
+      (el.onchange = () => {
+        const key = el.dataset.filter;
+        state[key] = [
+          ...document.querySelectorAll(`[data-filter="${key}"]:checked`),
+        ].map((i) => i.value);
+        loadSkins();
+      }),
+  );
+  $("resetBtn").onclick = reset;
+  $("viewAll").onclick = reset;
+  $("loadMore").onclick = () => {
+    state.offset = state.items.length;
+    loadSkins(true);
+  };
+  $("openFilters").onclick = () => {
+    $("filters").classList.add("open");
+    $("filters").setAttribute("role", "dialog");
+    $("filters").setAttribute("aria-modal", "true");
+    $("filters").setAttribute("aria-label", "Katalog filtrlari");
+    $("closeFilters").focus();
+  };
+  function closeFilters() {
+    $("filters").classList.remove("open");
+    $("filters").removeAttribute("role");
+    $("filters").removeAttribute("aria-modal");
+    $("openFilters").focus();
+  }
+  $("closeFilters").onclick = closeFilters;
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeModal();
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+    if (e.key === "Escape" && $("filters").classList.contains("open"))
+      closeFilters();
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
       e.preventDefault();
       $("searchInput").focus();
     }
-  });
-
-  $("topupBtn").addEventListener("click", openTopup);
-  $("profileBtn").addEventListener("click", openProfile);
-  $("accountBtn").addEventListener("click", () => {
-    setActiveNav("account");
-    openProfile();
-  });
-  $("historyBtn").addEventListener("click", () => {
-    setActiveNav("history");
-    openHistory();
-  });
-  $("inventoryBtn").addEventListener("click", () => {
-    setActiveNav("inventory");
-    toast("Inventar demo versiyada mavjud emas.");
-  });
-  $("navHome").addEventListener("click", () => {
-    setActiveNav("home");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  });
-  $("browseBtn").addEventListener("click", () => {
-    $("catalog").scrollIntoView({ behavior: "smooth" });
-  });
-
-  function setActiveNav(page) {
-    document.querySelectorAll(".nav-item").forEach((el) => {
-      el.classList.toggle("active", el.dataset.page === page || el.id === `nav${page.charAt(0).toUpperCase() + page.slice(1)}`);
-    });
-    // simpler approach
-    document.querySelectorAll(".nav-item").forEach((el) => el.classList.remove("active"));
-    if (page === "home") $("navHome").classList.add("active");
-    else if (page === "history") $("historyBtn").classList.add("active");
-    else if (page === "inventory") $("inventoryBtn").classList.add("active");
-    else if (page === "account") $("accountBtn").classList.add("active");
-  }
-
-  // Search with debounce
-  let searchTimer;
-  $("searchInput").addEventListener("input", (e) => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
-      state.query = e.target.value.trim();
-      // clear chip active if typing
-      $("chips").querySelectorAll(".chip").forEach((x) => x.classList.remove("active"));
-      if (!state.query) {
-        $("chips").querySelector('[data-query=""]')?.classList.add("active");
+    if (e.key === "Tab" && $("filters").classList.contains("open")) {
+      const els = [...$("filters").querySelectorAll("button,input")];
+      if (e.shiftKey && document.activeElement === els[0]) {
+        e.preventDefault();
+        els.at(-1).focus();
+      } else if (!e.shiftKey && document.activeElement === els.at(-1)) {
+        e.preventDefault();
+        els[0].focus();
       }
-      loadSkins();
-    }, 280);
+    }
   });
-
-  $("chips").querySelectorAll("[data-query]").forEach((b) => {
-    b.addEventListener("click", () => {
-      state.query = b.dataset.query;
-      $("searchInput").value = state.query;
-      $("chips").querySelectorAll(".chip").forEach((x) =>
-        x.classList.toggle("active", x === b)
-      );
-      loadSkins();
-    });
-  });
-
-  document.querySelectorAll(".market-nav-link").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.query = button.dataset.query || "";
-      $("searchInput").value = state.query;
-      document.querySelectorAll(".market-nav-link").forEach((item) =>
-        item.classList.toggle("active", item === button)
-      );
-      $("chips").querySelectorAll(".chip").forEach((item) =>
-        item.classList.toggle("active", item.dataset.query === state.query)
-      );
-      loadSkins();
-      $("catalog").scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-
-  $("sortBtn").addEventListener("click", () => {
-    state.sortIndex = (state.sortIndex + 1) % SORT_OPTIONS.length;
-    const opt = SORT_OPTIONS[state.sortIndex];
-    state.sort = opt.key;
-    $("sortLabel").textContent = opt.label;
-    loadSkins();
-  });
-
-  // ---------- Init ----------
-  initTheme();
-  initAdminAccess();
-  loadUser();
-  loadBrandSkinGallery();
-  loadSkins();
+  try {
+    if (localStorage.getItem("skinsavo_theme") === "light")
+      document.documentElement.dataset.theme = "light";
+  } catch {}
+  $("themeBtn").onclick = () => {
+    const theme =
+      document.documentElement.dataset.theme === "light" ? "dark" : "light";
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem("skinsavo_theme", theme);
+      tg?.setHeaderColor(theme === "light" ? "#f5f5f5" : "#090909");
+    } catch {}
+  };
+  $("year").textContent = new Date().getFullYear();
+  imageFallbacks();
+  (async () => {
+    try {
+      state.manifest = await api("/static/assets/manifest.json");
+    } catch {}
+    await loadSkins();
+  })();
+  (async () => {
+    try {
+      state.session = await api("/api/session");
+      await loadUser();
+      if (!state.session.authenticated)
+        $("balanceValue").textContent = "Kirish";
+    } catch (e) {
+      $("balanceValue").textContent = "Mavjud emas";
+      toast(e.message);
+    }
+  })();
 })();

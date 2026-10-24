@@ -1,80 +1,73 @@
-# SkinSavo 🎮
+﻿# SkinSavo
 
-Premium Telegram Mini App for a CS2 skin catalog.  
-Python / FastAPI backend · SQLite demo storage · Modern dark UI optimized for mobile & Telegram.
+CS2 demo marketplace on the existing FastAPI / SQLite / vanilla JavaScript stack.
+Monochrome interface with authentic colored product art. No real payments,
+Steam transfers or live market-price feed.
 
-## Features
+## Run
 
-- **Premium dark UI** with light theme toggle, glass effects, smooth animations
-- Responsive skin cards (image, rarity, condition, price, stock)
-- Search by name / weapon / rarity / condition + quick category chips
-- Sorting: Tavsiya · Arzon · Qimmat · Nom · Qoldiq
-- Skin detail bottom-sheet modal
-- Per-user demo balance, simulated top-up, balance history
-- Skeleton loading states, empty states, toast notifications
-- Telegram Mini App SDK + bot `/start` with WebApp button
-- Render.com deployment blueprint
-
-## Run locally
-
-```bash
+```powershell
 python -m venv .venv
-# Windows: .venv\Scripts\activate
-# macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env          # or copy on Windows
-uvicorn main:app --reload
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+Copy-Item .env.example .env
+.\.venv\Scripts\python.exe -m uvicorn main:app --reload
 ```
 
-Open `http://127.0.0.1:8000`.
+Open http://127.0.0.1:8000. The public catalog works without sign-in. Account,
+balance, purchase, sale and history require signed Telegram Mini App initData
+in X-Telegram-Init-Data. Set BOT_TOKEN and WEBAPP_URL to connect your bot;
+run python main.py as a separate bot process. ADMIN_TELEGRAM_ID grants the
+matching signed user access to the existing admin listing panel.
 
-> **Note:** If you already ran an older version, delete `skinsavo.db` once so the expanded catalog (20 skins) is seeded.
+New accounts start at zero. Explicit demo top-ups add simulated funds. Demo
+purchases validate stock and balance in a SQLite write transaction and persist
+inventory and history. Selling an owned demo item refunds its recorded purchase
+price once. Admin deletion deactivates listings, preserving inventory. Existing
+balances and database records are preserved. Startup never deletes demo rows.
 
-Telegram Mini App behavior requires opening the app from Telegram over **HTTPS**.
+## Catalog and artwork
 
-## Connect Telegram
+Search, category, multiple rarity/condition selections and sorting work together.
+Reset clears every filter. Pagination supports catalogs over 100 rows. Category
+counts come from active database listings. Existing 20 demo records are retained;
+no stock is added. Empty production databases remain empty until an admin adds
+listings. No user/trade totals are presented as verified platform statistics.
 
-1. Create a bot with [@BotFather](https://t.me/BotFather) and put the token in `.env` as `BOT_TOKEN`.
-2. Deploy the web app to a public HTTPS URL and set `WEBAPP_URL` to that exact URL.
-3. Run the bot process: `python main.py`
-4. Optionally set the bot menu button in BotFather.
+Local artwork mappings and provenance: static/assets/manifest.json and
+static/assets/sources.json. Trade banner: generated fictional promotional art.
+See static/assets/README.md for attribution and the image generation prompt.
+The screenshot mentioned in the brief was unavailable; implementation follows
+its written layout specification.
 
-Web service and bot are separate processes:
-- `uvicorn main:app --host 0.0.0.0 --port 8000` — API + frontend
-- `python main.py` — Telegram bot polling
+## Validation
 
-**Never commit `.env` or your bot token.**
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+node --check static/app.js
+npm.cmd install --no-save --package-lock=false playwright
+node scripts/check-browser.cjs
+```
 
-## Deploy to Render
+Browser checks require installed Chrome on Windows, a running local server and
+the existing 20-row demo catalog. Six viewport widths, images, overflow, search,
+combined category filters, reset, sorting, details, theme persistence, mobile
+filters, guest access and uncaught JavaScript errors are checked. Screenshots
+are saved to ignored test-results/. External Telegram SDK and Google fonts are
+stubbed in guest browser tests; signed authentication is tested through the API.
+No frontend compilation is required.
 
-Use **New + → Blueprint** and select this repository.  
-Set `WEBAPP_URL` (final public HTTPS URL) and `BOT_TOKEN` in the service environment.
+## Deployment
 
-**Storage note:** the included blueprint uses `/tmp` for a simple demo database (ephemeral). For production attach a persistent disk or switch to PostgreSQL.
+railway.json starts the existing ASGI app and checks /api/health. The existing
+Render blueprint is retained. Set DATABASE_PATH to the database on the existing
+persistent volume. Preserve that path and volume; never delete a database to
+refresh catalog data. Startup adds the inventory table without changing rows.
 
-## Important: demo only
+Deploy the intended GitHub commit through the existing Railway service and
+verify both its commit and /api/health version 0.3.0. A healthy URL alone does
+not prove the intended commit deployed.
 
-- Catalog is **sample/demo data** (20 CS2-style skins). Not a live market feed.
-- Demo top-ups only change a simulated balance. No real payments, purchases, or Steam transfers.
-- Before real users/funds: add Telegram `initData` signature validation, rate limits, persistent storage, audit logs, and a payment provider. Never trust a browser-supplied user ID alone.
+Production URL: https://skinsavo-web-production.up.railway.app/
 
-## API
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/health` | Health check |
-| GET | `/api/skins?q=&sort=&limit=&offset=` | List / search skins |
-| GET | `/api/skins/{id}` | Skin detail |
-| GET | `/api/users/{telegram_id}` | User + balance |
-| POST | `/api/demo/topup` | Demo top-up only |
-| GET | `/api/users/{telegram_id}/history` | Balance history |
-
-## Tech stack
-
-- Backend: FastAPI, aiogram 3, SQLite, Pydantic
-- Frontend: Vanilla JS, modern CSS (no framework), Telegram WebApp SDK
-- Deploy: Render blueprint
-
----
-
-Made for demo / portfolio use. Not affiliated with Valve or Steam.
+Real payments, Steam integration, live inventory, real-time market pricing and
+commercial asset licensing remain outside this demo implementation.

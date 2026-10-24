@@ -7,7 +7,7 @@ import json
 import os
 import sqlite3
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl
@@ -28,239 +28,19 @@ STATIC_DIR = BASE_DIR / "static"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE_DIR / "skinsavo.db"))
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 WEBAPP_URL = os.getenv("WEBAPP_URL", "").strip()
-START_BALANCE = float(os.getenv("DEMO_START_BALANCE", "250.00"))
+START_BALANCE = 0.0  # Only explicit demo top-ups credit simulated funds.
 ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID", "").strip()
 
-# Expanded demo catalog — realistic CS2-style names & prices (demo only)
-SAMPLE_SKINS: list[dict[str, Any]] = [
-    {
-        "name": "AK-47 | Redline",
-        "weapon": "AK-47",
-        "skin": "Redline",
-        "rarity": "Classified",
-        "condition": "Field-Tested",
-        "price": 18.75,
-        "stock": 6,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=AK-47+Redline",
-        "description": "Qizil va qora rangdagi klassik AK-47 skin. Demo listing.",
-    },
-    {
-        "name": "AWP | Asiimov",
-        "weapon": "AWP",
-        "skin": "Asiimov",
-        "rarity": "Covert",
-        "condition": "Field-Tested",
-        "price": 92.50,
-        "stock": 2,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=AWP+Asiimov",
-        "description": "Futuristik oq-to‘q sariq sniper finish. Demo listing.",
-    },
-    {
-        "name": "M4A1-S | Printstream",
-        "weapon": "M4A1-S",
-        "skin": "Printstream",
-        "rarity": "Covert",
-        "condition": "Minimal Wear",
-        "price": 74.20,
-        "stock": 3,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=M4A1-S+Printstream",
-        "description": "Monoxrom pearl-like dizayn. Demo listing.",
-    },
-    {
-        "name": "USP-S | Kill Confirmed",
-        "weapon": "USP-S",
-        "skin": "Kill Confirmed",
-        "rarity": "Covert",
-        "condition": "Field-Tested",
-        "price": 39.90,
-        "stock": 5,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=USP-S+Kill+Confirmed",
-        "description": "Yorqin illustratsiyali USP-S. Demo listing.",
-    },
-    {
-        "name": "Glock-18 | Fade",
-        "weapon": "Glock-18",
-        "skin": "Fade",
-        "rarity": "Restricted",
-        "condition": "Factory New",
-        "price": 82.00,
-        "stock": 1,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=Glock-18+Fade",
-        "description": "Gradient metallic fade. Demo listing.",
-    },
-    {
-        "name": "★ Karambit | Doppler",
-        "weapon": "Knife",
-        "skin": "Doppler",
-        "rarity": "Covert",
-        "condition": "Factory New",
-        "price": 465.00,
-        "stock": 1,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=Karambit+Doppler",
-        "description": "Egri pichoq, Doppler phase. Demo listing.",
-    },
-    {
-        "name": "Desert Eagle | Printstream",
-        "weapon": "Desert Eagle",
-        "skin": "Printstream",
-        "rarity": "Covert",
-        "condition": "Minimal Wear",
-        "price": 48.60,
-        "stock": 4,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=Desert+Eagle+Printstream",
-        "description": "Oq-qora pearlescent finish. Demo listing.",
-    },
-    {
-        "name": "P250 | See Ya Later",
-        "weapon": "P250",
-        "skin": "See Ya Later",
-        "rarity": "Covert",
-        "condition": "Minimal Wear",
-        "price": 12.40,
-        "stock": 9,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=P250+See+Ya+Later",
-        "description": "Rangli creature-inspired skin. Demo listing.",
-    },
-    {
-        "name": "AK-47 | Vulcan",
-        "weapon": "AK-47",
-        "skin": "Vulcan",
-        "rarity": "Covert",
-        "condition": "Field-Tested",
-        "price": 68.30,
-        "stock": 3,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=AK-47+Vulcan",
-        "description": "Qizil race-car uslubidagi AK. Demo listing.",
-    },
-    {
-        "name": "AWP | Dragon Lore",
-        "weapon": "AWP",
-        "skin": "Dragon Lore",
-        "rarity": "Covert",
-        "condition": "Field-Tested",
-        "price": 4200.00,
-        "stock": 1,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=AWP+Dragon+Lore",
-        "description": "Afsonaviy oltin ajdaho. Demo listing (narx taxminiy).",
-    },
-    {
-        "name": "★ Butterfly Knife | Fade",
-        "weapon": "Knife",
-        "skin": "Fade",
-        "rarity": "Covert",
-        "condition": "Factory New",
-        "price": 890.00,
-        "stock": 1,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=Butterfly+Fade",
-        "description": "Butterfly knife gradient fade. Demo listing.",
-    },
-    {
-        "name": "M4A4 | Howl",
-        "weapon": "M4A4",
-        "skin": "Howl",
-        "rarity": "Contraband",
-        "condition": "Minimal Wear",
-        "price": 1850.00,
-        "stock": 1,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=M4A4+Howl",
-        "description": "Contraband rarity, qizil bo‘ri. Demo listing.",
-    },
-    {
-        "name": "USP-S | Neo-Noir",
-        "weapon": "USP-S",
-        "skin": "Neo-Noir",
-        "rarity": "Covert",
-        "condition": "Factory New",
-        "price": 28.50,
-        "stock": 7,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=USP-S+Neo-Noir",
-        "description": "Badiiy neo-noir uslub. Demo listing.",
-    },
-    {
-        "name": "AK-47 | Bloodsport",
-        "weapon": "AK-47",
-        "skin": "Bloodsport",
-        "rarity": "Covert",
-        "condition": "Minimal Wear",
-        "price": 55.80,
-        "stock": 4,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=AK-47+Bloodsport",
-        "description": "Sportiv qizil-qora AK. Demo listing.",
-    },
-    {
-        "name": "AWP | Containment Breach",
-        "weapon": "AWP",
-        "skin": "Containment Breach",
-        "rarity": "Covert",
-        "condition": "Field-Tested",
-        "price": 42.10,
-        "stock": 5,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=AWP+Containment",
-        "description": "Yashil kontainment uslubi. Demo listing.",
-    },
-    {
-        "name": "Glock-18 | Water Elemental",
-        "weapon": "Glock-18",
-        "skin": "Water Elemental",
-        "rarity": "Classified",
-        "condition": "Minimal Wear",
-        "price": 9.80,
-        "stock": 12,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=Glock+Water",
-        "description": "Suv elementlari. Demo listing.",
-    },
-    {
-        "name": "★ Bayonet | Marble Fade",
-        "weapon": "Knife",
-        "skin": "Marble Fade",
-        "rarity": "Covert",
-        "condition": "Factory New",
-        "price": 520.00,
-        "stock": 2,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=Bayonet+Marble",
-        "description": "Marble Fade phase. Demo listing.",
-    },
-    {
-        "name": "Desert Eagle | Blaze",
-        "weapon": "Desert Eagle",
-        "skin": "Blaze",
-        "rarity": "Restricted",
-        "condition": "Factory New",
-        "price": 185.00,
-        "stock": 2,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=Deagle+Blaze",
-        "description": "Olovli blaze finish. Demo listing.",
-    },
-    {
-        "name": "M4A1-S | Player Two",
-        "weapon": "M4A1-S",
-        "skin": "Player Two",
-        "rarity": "Classified",
-        "condition": "Field-Tested",
-        "price": 14.20,
-        "stock": 8,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=M4A1-S+Player+Two",
-        "description": "O‘yinchi ikki uslubi. Demo listing.",
-    },
-    {
-        "name": "AWP | Neo-Noir",
-        "weapon": "AWP",
-        "skin": "Neo-Noir",
-        "rarity": "Covert",
-        "condition": "Minimal Wear",
-        "price": 38.90,
-        "stock": 4,
-        "image": "https://placehold.co/640x420/080808/ffffff?text=AWP+Neo-Noir",
-        "description": "Badiiy neo-noir AWP. Demo listing.",
-    },
-]
-
-
-def db() -> sqlite3.Connection:
+@contextmanager
+def db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def init_db() -> None:
@@ -305,8 +85,13 @@ def init_db() -> None:
             )
             """
         )
-        # Remove old seeded placeholder listings; preserve future admin-added skins.
-        conn.execute("DELETE FROM skins WHERE image LIKE 'https://placehold.co/%' AND description LIKE '%Demo listing%'")
+        conn.execute("""CREATE TABLE IF NOT EXISTS inventory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            telegram_id TEXT NOT NULL REFERENCES users(telegram_id),
+            skin_id INTEGER NOT NULL REFERENCES skins(id),
+            name TEXT NOT NULL, price REAL NOT NULL,
+            status TEXT NOT NULL DEFAULT 'owned',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
 
 
 def user_payload(telegram_id: str, username: str = "") -> dict[str, Any]:
@@ -333,13 +118,13 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="SkinSavo API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="SkinSavo API", version="0.3.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 class DemoTopUp(BaseModel):
     telegram_id: str = Field(min_length=1, max_length=80)
-    amount: float = Field(gt=0, le=10000)
+    amount: float = Field(gt=0, le=10000, allow_inf_nan=False)
 
 
 class SkinCreate(BaseModel):
@@ -348,7 +133,7 @@ class SkinCreate(BaseModel):
     skin: str = Field(min_length=1, max_length=100)
     rarity: str = Field(min_length=1, max_length=50)
     condition: str = Field(min_length=1, max_length=50)
-    price: float = Field(ge=0, le=100000000)
+    price: float = Field(ge=0, le=100000000, allow_inf_nan=False)
     stock: int = Field(ge=0, le=1000000)
     image: str = Field(min_length=8, max_length=2000)
     description: str = Field(default="", max_length=2000)
@@ -375,7 +160,12 @@ def telegram_user_from_init_data(init_data: str) -> dict[str, Any]:
     expected_hash = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected_hash, received_hash):
         raise HTTPException(status_code=401, detail="Telegram imzosi tekshiruvdan o‘tmadi")
-    user = json.loads(data.get("user", "{}"))
+    try:
+        user = json.loads(data.get("user", "{}"))
+        if not isinstance(user, dict):
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Telegram user ma’lumoti noto‘g‘ri")
     if not user.get("id"):
         raise HTTPException(status_code=401, detail="Telegram foydalanuvchisi aniqlanmadi")
     return user
@@ -415,7 +205,7 @@ def admin_create_skin(payload: SkinCreate, x_telegram_init_data: str = Header(de
 def admin_delete_skin(skin_id: int, x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
     require_admin(x_telegram_init_data)
     with db() as conn:
-        cur = conn.execute("DELETE FROM skins WHERE id = ?", (skin_id,))
+        cur = conn.execute("UPDATE skins SET active = 0 WHERE id = ?", (skin_id,))
     if cur.rowcount == 0:
         raise HTTPException(status_code=404, detail="Skin topilmadi")
     return {"ok": True, "deleted_id": skin_id}
@@ -426,54 +216,52 @@ def health():
         "ok": True,
         "mode": "demo",
         "catalog_source": "admin_managed",
-        "version": "0.2.0",
+        "version": "0.3.0",
+        "revision": os.getenv("RAILWAY_GIT_COMMIT_SHA", ""),
     }
+
+
+CATEGORIES = {
+    "Rifles": ["AK-47", "M4A1-S", "M4A4", "FAMAS", "Galil AR", "AUG", "SG 553"],
+    "Snipers": ["AWP", "SSG 08", "SCAR-20", "G3SG1"],
+    "SMGs": ["MP9", "MP7", "MP5-SD", "MAC-10", "UMP-45", "P90", "PP-Bizon"],
+    "Shotguns": ["Nova", "XM1014", "MAG-7", "Sawed-Off"],
+    "Pistols": ["USP-S", "Glock-18", "Desert Eagle", "P250", "Five-SeveN", "Tec-9", "CZ75-Auto", "P2000", "R8 Revolver", "Dual Berettas"],
+    "Knives": ["Knife", "Karambit", "Bayonet", "Butterfly Knife"],
+    "Gloves": ["Gloves", "Hand Wraps", "Sport Gloves", "Driver Gloves"],
+}
+
+
+def category_of(item):
+    weapon = item["weapon"]
+    if any(word in weapon.lower() for word in ("knife", "karambit", "bayonet")):
+        return "Knives"
+    if "glove" in weapon.lower() or "wraps" in weapon.lower():
+        return "Gloves"
+    return next((key for key, weapons in CATEGORIES.items() if weapon in weapons), "Other")
 
 
 @app.get("/api/skins")
-def list_skins(
-    q: str = Query(default="", max_length=100),
-    sort: str = Query(default="featured"),
-    limit: int = Query(default=100, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
-):
-    sql = "SELECT * FROM skins WHERE active = 1"
-    params: list[Any] = []
-
-    if q.strip():
-        needle = f"%{q.strip()}%"
-        sql += " AND (name LIKE ? OR weapon LIKE ? OR skin LIKE ? OR rarity LIKE ? OR condition LIKE ?)"
-        params.extend([needle] * 5)
-
-    order_map = {
-        "price_asc": "price ASC",
-        "price_desc": "price DESC",
-        "name": "name COLLATE NOCASE ASC",
-        "stock": "stock DESC",
-        "featured": "id ASC",
-    }
-    order = order_map.get(sort, "id ASC")
-
+def list_skins(q: str = Query(default="", max_length=100), sort: str = "featured",
+               category: str = "", rarity: str = "", condition: str = "",
+               limit: int = Query(default=100, ge=1, le=200), offset: int = Query(default=0, ge=0)):
     with db() as conn:
-        count_sql = "SELECT COUNT(*) FROM skins WHERE active = 1"
-        count_params: list[Any] = []
-        if q.strip():
-            count_sql += " AND (name LIKE ? OR weapon LIKE ? OR skin LIKE ? OR rarity LIKE ? OR condition LIKE ?)"
-            count_params = params[:]
-
-        total = conn.execute(count_sql, count_params).fetchone()[0]
-        rows = conn.execute(
-            sql + f" ORDER BY {order} LIMIT ? OFFSET ?",
-            params + [limit, offset],
-        ).fetchall()
-
-    return {
-        "items": [dict(r) for r in rows],
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-        "demo": True,
-    }
+        items = [dict(row) for row in conn.execute("SELECT * FROM skins WHERE active = 1 ORDER BY id")]
+    counts = {key: sum(category_of(item) == key for item in items) for key in CATEGORIES}
+    total_catalog = len(items)
+    items = [item for item in items if
+             (not q.strip() or q.strip().lower() in " ".join(str(item[k]) for k in ("name", "weapon", "skin", "rarity", "condition")).lower())
+             and (not category or category_of(item) == category)
+             and (not rarity or item["rarity"] in rarity.split(","))
+             and (not condition or item["condition"] in condition.split(","))]
+    if sort in ("price_asc", "price_desc"):
+        items.sort(key=lambda i: i["price"], reverse=sort == "price_desc")
+    elif sort in ("name", "name_desc"):
+        items.sort(key=lambda i: i["name"].lower(), reverse=sort == "name_desc")
+    elif sort == "stock":
+        items.sort(key=lambda i: i["stock"], reverse=True)
+    return {"items": items[offset:offset + limit], "total": len(items), "catalog_total": total_catalog,
+            "categories": counts, "limit": limit, "offset": offset, "demo": True}
 
 
 @app.get("/api/skins/{skin_id}")
@@ -488,14 +276,16 @@ def get_skin(skin_id: int):
 
 
 @app.get("/api/users/{telegram_id}")
-def get_user(telegram_id: str, username: str = ""):
+def get_user(telegram_id: str, username: str = "", x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    authorize_user(telegram_id, x_telegram_init_data)
     if not telegram_id or len(telegram_id) > 80:
         raise HTTPException(status_code=400, detail="Noto‘g‘ri Telegram ID")
     return {**user_payload(telegram_id, username), "demo": True}
 
 
 @app.post("/api/demo/topup")
-def demo_topup(payload: DemoTopUp):
+def demo_topup(payload: DemoTopUp, x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    authorize_user(payload.telegram_id, x_telegram_init_data)
     """Demo-only endpoint. Credits simulated funds. No real payments."""
     user_payload(payload.telegram_id)
     with db() as conn:
@@ -527,7 +317,8 @@ def demo_topup(payload: DemoTopUp):
 
 
 @app.get("/api/users/{telegram_id}/history")
-def user_history(telegram_id: str):
+def user_history(telegram_id: str, x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    authorize_user(telegram_id, x_telegram_init_data)
     if not telegram_id or len(telegram_id) > 80:
         raise HTTPException(status_code=400, detail="Noto‘g‘ri Telegram ID")
     with db() as conn:
@@ -542,6 +333,61 @@ def user_history(telegram_id: str):
             (telegram_id,),
         ).fetchall()
     return {"items": [dict(r) for r in rows]}
+
+
+def authorize_user(telegram_id: str, init_data: str):
+    user = telegram_user_from_init_data(init_data)
+    if str(user["id"]) != telegram_id:
+        raise HTTPException(status_code=403, detail="Boshqa foydalanuvchi hisobiga kirish taqiqlangan")
+    return user
+
+
+class DemoPurchase(BaseModel):
+    skin_id: int = Field(gt=0)
+
+
+@app.post("/api/demo/purchase")
+def demo_purchase(payload: DemoPurchase, x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    user = telegram_user_from_init_data(x_telegram_init_data)
+    uid = str(user["id"])
+    user_payload(uid, user.get("username", ""))
+    with db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        skin = conn.execute("SELECT * FROM skins WHERE id = ? AND active = 1", (payload.skin_id,)).fetchone()
+        if not skin or skin["stock"] < 1:
+            raise HTTPException(status_code=409, detail="Skin qoldig‘i mavjud emas")
+        balance = conn.execute("SELECT balance FROM users WHERE telegram_id = ?", (uid,)).fetchone()[0]
+        if balance < skin["price"]:
+            raise HTTPException(status_code=409, detail="Demo balans yetarli emas")
+        conn.execute("UPDATE skins SET stock = stock - 1 WHERE id = ?", (skin["id"],))
+        conn.execute("UPDATE users SET balance = ROUND(balance - ?, 2) WHERE telegram_id = ?", (skin["price"], uid))
+        conn.execute("INSERT INTO inventory (telegram_id, skin_id, name, price) VALUES (?, ?, ?, ?)", (uid, skin["id"], skin["name"], skin["price"]))
+        conn.execute("INSERT INTO balance_events (telegram_id, amount, event_type, note) VALUES (?, ?, 'demo_purchase', ?)", (uid, -skin["price"], skin["name"]))
+    return {"ok": True, "demo": True}
+
+
+@app.get("/api/inventory")
+def inventory(x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    user = telegram_user_from_init_data(x_telegram_init_data)
+    with db() as conn:
+        rows = conn.execute("SELECT i.*, s.image, s.condition FROM inventory i JOIN skins s ON s.id=i.skin_id WHERE i.telegram_id=? ORDER BY i.id DESC", (str(user["id"]),)).fetchall()
+    return {"items": [dict(row) for row in rows], "demo": True}
+
+
+@app.post("/api/demo/inventory/{item_id}/sell")
+def sell_demo_item(item_id: int, x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    user = telegram_user_from_init_data(x_telegram_init_data)
+    uid = str(user["id"])
+    with db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        item = conn.execute("SELECT * FROM inventory WHERE id=? AND telegram_id=? AND status='owned'", (item_id, uid)).fetchone()
+        if not item:
+            raise HTTPException(status_code=404, detail="Inventar elementi topilmadi")
+        conn.execute("UPDATE inventory SET status='sold' WHERE id=?", (item_id,))
+        conn.execute("UPDATE skins SET stock=stock+1 WHERE id=?", (item["skin_id"],))
+        conn.execute("UPDATE users SET balance=ROUND(balance+?, 2) WHERE telegram_id=?", (item["price"], uid))
+        conn.execute("INSERT INTO balance_events (telegram_id, amount, event_type, note) VALUES (?, ?, 'demo_sale', ?)", (uid, item["price"], item["name"]))
+    return {"ok": True, "demo": True}
 
 
 # ---------- Telegram bot ----------

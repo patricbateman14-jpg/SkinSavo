@@ -1,132 +1,232 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="uz">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-  <meta name="theme-color" content="#07080c">
-  <meta name="description" content="SkinSavo — CS2 skinlar katalogi. Demo Telegram Mini App.">
-  <title>SkinSavo — CS2 Skins</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="/static/styles.css">
-</head>
-<body>
-  <div class="app-shell">
-    <header class="topbar marketplace-header">
-      <a class="brand brand-skins" href="#" aria-label="SkinSavo bosh sahifa">
-        <span class="brand-skin-strip" id="brandSkinStrip" aria-label="CS2 skinlari">
-          <span class="brand-skin-loading"></span><span class="brand-skin-loading"></span><span class="brand-skin-loading"></span><span class="brand-skin-loading"></span>
-        </span>
-      </a>
-      <label class="search-box header-search" for="searchInput">
-        <svg class="icon search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg>
-        <input id="searchInput" type="search" placeholder="CS2 skinlarini qidirish..." autocomplete="off" enterkeyhint="search">
-        <kbd>Ctrl K</kbd>
-      </label>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#090909" />
+    <meta
+      name="description"
+      content="SkinSavo CS2 skin katalogi va demo inventar"
+    />
+    <title>SkinSavo — Your Skins. Our Priority.</title>
+    <link rel="icon" href="/static/assets/favicon.svg" type="image/svg+xml" />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#catalog">Katalogga o‘tish</a>
+    <header>
+      <a class="brand" href="#"
+        ><b>S</b><span>SkinSavo<small>CS2 SKIN MARKET</small></span></a
+      >
+      <nav>
+        <a class="active" href="#">Bosh sahifa</a><a href="#catalog">Katalog</a
+        ><button data-action="inventory">Inventar</button><a href="#faq">FAQ</a>
+      </nav>
       <div class="header-actions">
-        <button class="icon-btn" id="themeBtn" aria-label="Mavzuni almashtirish" title="Light / Dark"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/></svg></button>
-        <button class="icon-btn" id="profileBtn" aria-label="Profil"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.5-3.6 3.1-5.5 7-5.5s6.5 1.9 7 5.5"/></svg></button>
+        <button
+          class="icon-btn"
+          id="themeBtn"
+          aria-label="Mavzuni almashtirish"
+          data-icon="sun"
+        ></button
+        ><button
+          class="icon-btn"
+          data-action="profile"
+          aria-label="Profil"
+          data-icon="user"
+        ></button>
+        <div class="balance">
+          <small>DEMO BALANS</small><strong id="balanceValue">—</strong>
+        </div>
+        <button
+          class="add-balance"
+          data-action="topup"
+          aria-label="Demo balans qo‘shish"
+          data-icon="plus"
+        ></button>
       </div>
     </header>
-    <nav class="market-nav" aria-label="Skin kategoriyalari">
-      <button class="market-nav-link active" data-query="">Barchasi</button>
-      <button class="market-nav-link" data-query="Knife">Pichoqlar</button>
-      <button class="market-nav-link" data-query="AWP">Snayper miltiqlari</button>
-      <button class="market-nav-link" data-query="AK-47">AK-47</button>
-      <button class="market-nav-link" data-query="M4A4">M4A4</button>
-      <button class="market-nav-link" data-query="Gloves">Qo‘lqoplar</button>
-      <button class="market-nav-link" data-query="Covert">Noyob skinlar</button>
-    </nav>
-
-    <section class="hero marketplace-hero">
-      <div class="hero-copy">
-        <span class="eyebrow"><i></i> SKINSAVO MARKET</span>
-        <h1>Sevimli skinlaringni<br><span>bir joydan top.</span></h1>
-        <p>CS2 skinlari, pichoqlar va qo‘lqoplar. Qidir, solishtir va kolleksiyangga keraklisini tanla.</p>
-        <button class="primary-btn" id="browseBtn">Katalogni ko‘r <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M8 17h9V8"/></svg></button>
-      </div>
-      <div class="hero-art" aria-hidden="true"><img id="heroSkinImage" src="" alt="" width="560" height="360"></div>
-      <div class="hero-stats"><span><strong>CS2</strong><small>skin katalogi</small></span><span><strong>24/7</strong><small>katalogga kirish</small></span><span><strong>Demo</strong><small>sinov xaridi</small></span></div>
-    </section>
-
-    <section class="balance-card" aria-label="Balans">
-      <div class="balance-left">
-        <div class="balance-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg></div>
-        <div>
-          <span class="muted-label">Sizning demo balansingiz</span>
-          <div class="balance-value" id="balanceValue">250.00 <small>USD</small></div>
+    <div class="layout">
+      <aside id="filters">
+        <div class="sidebar-title">
+          KATEGORIYALAR<button
+            class="icon-btn mobile"
+            id="closeFilters"
+            aria-label="Filtrlarni yopish"
+            data-icon="close"
+          ></button>
         </div>
-      </div>
-      <button class="topup-btn" id="topupBtn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> To‘ldirish</button>
-    </section>
-
-    <main id="catalog">
-      <div class="section-heading">
-        <div>
-          <span class="eyebrow" style="margin-bottom:4px">KOLLEKSIYA</span>
-          <h2>Skinlar katalogi <span class="count" id="skinCount">—</span></h2>
+        <div id="categoryList"></div>
+        <fieldset>
+          <legend>RARITY</legend>
+          <div id="rarityList"></div>
+        </fieldset>
+        <fieldset>
+          <legend>CONDITION</legend>
+          <div id="conditionList"></div>
+        </fieldset>
+        <div class="sidebar-note">
+          <span data-icon="shield"></span>
+          <h3>Sizning uslubingiz.<br />Sizning tanlovingiz.</h3>
+          <p>Skinlarni toping va demo inventarda sinab ko‘ring.</p>
         </div>
-        <button class="filter-btn" id="sortBtn" aria-label="Saralash"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16M4 8l4-4 4 4M16 20V4m-4 12 4 4 4-4"/></svg><span id="sortLabel">Tavsiya</span></button>
-      </div>
-
-      <div class="chips" id="chips" role="tablist" aria-label="Tezkor filtrlar">
-        <button class="chip active" data-query="" role="tab">Barchasi</button>
-        <button class="chip" data-query="AK-47" role="tab">AK-47</button>
-        <button class="chip" data-query="AWP" role="tab">AWP</button>
-        <button class="chip" data-query="Knife" role="tab">Pichoqlar</button>
-        <button class="chip" data-query="Covert" role="tab">Covert</button>
-        <button class="chip" data-query="Gloves" role="tab">Qo‘lqoplar</button>
-        <button class="chip" data-query="Factory New" role="tab">Factory New</button>
-      </div>
-
-      <div class="skin-grid" id="skinGrid" aria-live="polite">
-        <div class="skeleton-grid">
-          <div class="skeleton-card"></div>
-          <div class="skeleton-card"></div>
-          <div class="skeleton-card"></div>
-          <div class="skeleton-card"></div>
-        </div>
-      </div>
-
-      <div class="demo-note">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7h.01"/></svg> Demo katalog. Narxlar va qoldiq haqiqiy bozor taklifi emas. Haqiqiy to‘lovlar va skin transferi mavjud emas.
-      </div>
-    </main>
-
-    <nav class="bottom-nav" aria-label="Asosiy navigatsiya">
-      <button class="nav-item active" data-page="home" id="navHome"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>Bosh sahifa</button>
-      <button class="nav-item" id="inventoryBtn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Inventar</button>
-      <button class="nav-item" id="historyBtn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Tarix</button>
-      <button class="nav-item" id="accountBtn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.5-3.6 3.1-5.5 7-5.5s6.5 1.9 7 5.5"/></svg>Profil</button>
-    </nav>
-  </div>
-
-  <div class="modal-backdrop hidden" id="modalBackdrop" role="presentation">
-    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <button class="modal-close" id="modalClose" aria-label="Yopish">×</button>
+      </aside>
+      <main>
+        <section class="hero">
+          <div class="hero-copy">
+            <span class="eyebrow">CS2 SKINS MARKET</span>
+            <h1>Premium CS2 Skins<br />at the <em>Best Prices</em></h1>
+            <p>
+              Buy, sell and upgrade your CS2 skins instantly. Fast, secure and
+              reliable. Only the best skins, only on SkinSavo.
+            </p>
+            <a class="primary" href="#catalog"
+              >Explore Skins <span data-icon="arrow"></span
+            ></a>
+            <div class="highlights">
+              <span><i data-icon="bolt"></i>Instant Delivery</span
+              ><span><i data-icon="shield"></i>Secure Payments</span
+              ><span><i data-icon="headphones"></i>24/7 Support</span>
+            </div>
+            <small class="disclaimer"
+              >Demo marketplace · To‘lov va Steam transferi ulanmagan</small
+            >
+          </div>
+          <div class="hero-art">
+            <span class="watermark" aria-hidden="true">AK-47</span
+            ><img
+              src="/static/assets/hero-redline.png"
+              alt="AK-47 Redline skin artwork"
+              width="600"
+              height="450"
+            />
+            <div class="hero-product">
+              <small>FEATURED SKIN</small><strong>AK-47 | Redline</strong
+              ><small>Artwork showcase · Savdo taklifi emas</small>
+            </div>
+          </div>
+        </section>
+        <section id="catalog">
+          <form class="toolbar" id="filterForm" role="search">
+            <label class="search"
+              ><span data-icon="search"></span
+              ><input
+                id="searchInput"
+                type="search"
+                placeholder="Skin, qurol yoki rarity qidiring..."
+                aria-label="Skinlarni qidirish"
+              /><kbd>Ctrl K</kbd></label
+            ><button class="secondary mobile" type="button" id="openFilters">
+              <span data-icon="filter"></span>Filtrlar</button
+            ><select id="categorySelect" aria-label="Kategoriya"></select
+            ><select id="sortSelect" aria-label="Saralash">
+              <option value="featured">Default</option>
+              <option value="price_asc">Narx: Low → High</option>
+              <option value="price_desc">Narx: High → Low</option>
+              <option value="name">Name: A → Z</option>
+              <option value="name_desc">Name: Z → A</option></select
+            ><button class="secondary" type="button" id="resetBtn">
+              <span data-icon="reset"></span>Reset
+            </button>
+          </form>
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">FIND YOUR NEXT FAVORITE</span>
+              <h2>Mashhur Skins <span id="skinCount"></span></h2>
+            </div>
+            <button id="viewAll">
+              Barchasini ko‘rish <span data-icon="arrow"></span>
+            </button>
+          </div>
+          <div id="activeFilters" aria-live="polite"></div>
+          <div class="grid" id="skinGrid" aria-live="polite" aria-busy="true">
+            <p class="empty">Katalog yuklanmoqda…</p>
+          </div>
+          <button class="secondary load-more" id="loadMore" hidden>
+            Yana ko‘rsatish
+          </button>
+          <p class="demo-note">
+            <span data-icon="info"></span>Demo katalog. Narxlar, qoldiq va
+            balans haqiqiy bozor taklifi emas. Haqiqiy to‘lov yoki Steam
+            transferi amalga oshirilmaydi.
+          </p>
+        </section>
+        <section class="trade">
+          <div class="trade-art" aria-hidden="true">
+            <span data-icon="trade"></span
+            ><strong>UPGRADE<br />YOUR GAME.</strong>
+          </div>
+          <div class="trade-copy">
+            <span class="eyebrow">TRADE SKINS</span>
+            <h2>Trade Skins, Not Just Play</h2>
+            <p>
+              Upgrade your inventory, get the skins you want, or sell the ones
+              you don't need. SkinSavo makes it simple.
+            </p>
+            <button class="primary" data-action="inventory">
+              Start Trading <span data-icon="arrow"></span></button
+            ><small>Demo inventar · Haqiqiy skin almashinuvi emas</small>
+          </div>
+        </section>
+        <section id="faq">
+          <h2>Tez-tez so‘raladigan savollar</h2>
+          <details>
+            <summary>Bu haqiqiy savdo platformasimi?</summary>
+            <p>
+              Hozircha demo. Katalog ochiq, demo xarid va sotish uchun Telegram
+              orqali kirish kerak. Haqiqiy mablag‘ ishlatilmaydi.
+            </p>
+          </details>
+          <details>
+            <summary>Inventar qanday ishlaydi?</summary>
+            <p>
+              Demo balansni to‘ldirib, mavjud skinni demo xarid qiling.
+              Inventarda uni ko‘rish va ayni demo narxda qayta sotish mumkin.
+            </p>
+          </details>
+        </section>
+        <footer>
+          <div class="stats">
+            <div>
+              <strong>Demo</strong><small>Happy Users · Ochiq katalog</small>
+            </div>
+            <div>
+              <strong id="availableStat">—</strong
+              ><small>Skins Available · Katalog yozuvlari</small>
+            </div>
+            <div>
+              <strong>Demo trades</strong
+              ><small>Successful Trades · Sinov rejimi</small>
+            </div>
+            <div>
+              <strong>FAQ</strong><small>Support · Savol va javoblar</small>
+            </div>
+          </div>
+          <div class="footer-bottom">
+            <a class="brand" href="#"
+              ><b>S</b
+              ><span>SkinSavo<small>Your Skins. Our Priority.</small></span></a
+            >
+            <p>
+              © <span id="year"></span> SkinSavo. Not affiliated with Valve or
+              Steam.
+            </p>
+            <a href="#faq">Yordam ↗</a>
+          </div>
+        </footer>
+      </main>
+    </div>
+    <dialog id="modal" aria-labelledby="modalTitle">
+      <button
+        id="modalClose"
+        class="icon-btn modal-close"
+        aria-label="Yopish"
+        data-icon="close"
+      ></button>
       <div id="modalContent"></div>
-    </section>
-  </div>
-
-  <template id="adminPanelTemplate">
-    <span class="eyebrow">ADMINISTRATOR</span>
-    <h2 id="modalTitle">Yangi skin joylash</h2>
-    <p>Skin rasmi uchun to‘g‘ridan-to‘g‘ri ishlaydigan HTTPS rasm havolasini kiriting.</p>
-    <form id="adminSkinForm">
-      <label class="field-label" for="adminName">Skin nomi</label><input class="modal-input" id="adminName" name="name" required placeholder="AWP | Dragon Lore">
-      <label class="field-label" for="adminWeapon">Qurol</label><input class="modal-input" id="adminWeapon" name="weapon" required placeholder="AWP">
-      <label class="field-label" for="adminSkin">Skin nomi</label><input class="modal-input" id="adminSkin" name="skin" required placeholder="Dragon Lore">
-      <label class="field-label" for="adminRarity">Rarity</label><input class="modal-input" id="adminRarity" name="rarity" required placeholder="Covert">
-      <label class="field-label" for="adminCondition">Holati</label><input class="modal-input" id="adminCondition" name="condition" required placeholder="Factory New">
-      <label class="field-label" for="adminPrice">Narxi (USD)</label><input class="modal-input" id="adminPrice" name="price" type="number" min="0" step="0.01" required>
-      <label class="field-label" for="adminStock">Soni</label><input class="modal-input" id="adminStock" name="stock" type="number" min="0" step="1" required value="1">
-      <label class="field-label" for="adminImage">Rasm URL</label><input class="modal-input" id="adminImage" name="image" type="url" required placeholder="https://...">
-      <label class="field-label" for="adminDescription">Tavsif</label><textarea class="modal-input" id="adminDescription" name="description" rows="3" placeholder="Skin haqida qisqacha"></textarea>
-      <button class="full-btn" type="submit" id="adminSaveSkin">Skinni joylash</button>
-    </form>
-  </template>
-
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-  <script src="/static/app.js"></script>
-</body>
+    </dialog>
+    <div id="toast" role="status"></div>
+    <script src="/static/app.js"></script>
+  </body>
 </html>
