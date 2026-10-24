@@ -130,12 +130,19 @@
       },
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(
+    if (!response.ok) {
+      const error = new Error(
         typeof data.detail === "string"
           ? data.detail
           : "So‘rov bajarilmadi. Qayta urinib ko‘ring.",
       );
+      error.status = response.status;
+      if (response.status === 401) {
+        state.session = null;
+        showGate("Sessiya tugadi", "Botdagi SkinSavo tugmasidan qayta oching.");
+      }
+      throw error;
+    }
     return data;
   }
   function imageUrl(item) {
@@ -152,6 +159,12 @@
       img.addEventListener(
         "error",
         () => {
+          if (img.parentElement?.classList.contains("profile-avatar")) {
+            img.parentElement.textContent = Array.from(
+              state.session?.user?.first_name || "S",
+            )[0].toUpperCase();
+            return;
+          }
           img.src = "/static/assets/art-unavailable.svg";
           img.alt = "Rasm vaqtincha mavjud emas";
         },
@@ -246,18 +259,42 @@
   });
   function requireSession() {
     if (state.session?.authenticated) return true;
-    modal(
-      '<span class="eyebrow">TELEGRAM SIGN IN</span><h2 id="modalTitle">Telegram orqali kiring</h2><p>Shaxsiy balans, demo xarid va inventardan foydalanish uchun SkinSavo’ni Telegram botidagi Mini App tugmasi orqali oching. Katalogni hisob ochmasdan ko‘rish mumkin.</p>',
+    showGate(
+      "Bu sayt faqat Telegramda ishlaydi",
+      "Botdagi SkinSavo tugmasidan oching.",
     );
     return false;
+  }
+  function renderAccount(user) {
+    state.balance = user.balance;
+    state.session.user = user;
+    $("balanceValue").textContent = money(user.balance);
+    const button = document.querySelector(
+      '.header-actions [data-action="profile"]',
+    );
+    const name =
+      [user.first_name, user.last_name].filter(Boolean).join(" ") ||
+      user.username ||
+      "Profil";
+    button.title = name;
+    button.setAttribute("aria-label", name + " — profil");
+    button.innerHTML = user.photo_url
+      ? `<img class="header-avatar" src="${esc(user.photo_url)}" alt="" referrerpolicy="no-referrer">`
+      : `<span>${esc(Array.from(name)[0].toUpperCase())}</span>`;
+    button.querySelector("img")?.addEventListener(
+      "error",
+      () => {
+        button.innerHTML = `<span>${esc(Array.from(name)[0].toUpperCase())}</span>`;
+      },
+      { once: true },
+    );
   }
   async function loadUser() {
     if (!state.session?.authenticated) return;
     const user = await api(
       "/api/users/" + encodeURIComponent(state.session.telegram_id),
     );
-    state.balance = user.balance;
-    $("balanceValue").textContent = money(user.balance);
+    renderAccount(user);
   }
   async function detail(id) {
     try {
@@ -277,8 +314,13 @@
   }
   function profile() {
     if (!requireSession()) return;
+    const user = state.session.user;
+    const name =
+      [user.first_name, user.last_name].filter(Boolean).join(" ") ||
+      user.username ||
+      "Foydalanuvchi";
     modal(
-      `<span class="eyebrow">SKINSAVO HISOBI</span><h2 id="modalTitle">Salom, ${esc(state.session.username || "foydalanuvchi")}!</h2><p>Telegram ID: ${esc(state.session.telegram_id)}</p><div class="history-row"><span>Demo balans</span><strong>${money(state.balance)}</strong></div><p>Haqiqiy to‘lovlar yoki skin transferi ulanmagan.</p><button class="full-btn" data-action="topup">Demo balans qo‘shish</button><button class="full-btn" data-action="history">Balans tarixi</button>${state.session.is_admin ? '<button class="full-btn" data-action="admin">Administrator paneli</button>' : ""}`,
+      `<div class="profile-avatar">${user.photo_url ? `<img src="${esc(user.photo_url)}" alt="Telegram profil rasmi" referrerpolicy="no-referrer">` : esc(Array.from(name)[0].toUpperCase())}</div><span class="eyebrow">TELEGRAM PROFIL</span><h2 id="modalTitle">${esc(name)}</h2>${user.username ? `<p>@${esc(user.username)}</p>` : ""}<p>ID: ${esc(user.telegram_id)}</p><div class="history-row"><span>Demo balans</span><strong>${money(state.balance)}</strong></div><button class="full-btn" data-action="topup">Demo balans qo‘shish</button><button class="full-btn" data-action="history">Balans tarixi</button>${state.session.is_admin ? '<button class="full-btn" data-action="admin">Administrator paneli</button>' : ""}`,
     );
   }
   async function inventory() {
@@ -519,21 +561,63 @@
   };
   $("year").textContent = new Date().getFullYear();
   imageFallbacks();
-  (async () => {
+  function showGate(title, message, retry = false) {
+    document.body.dataset.auth = "blocked";
+    $("gateTitle").textContent = title;
+    $("gateMessage").textContent = message;
+    $("authRetry").hidden = !retry;
+    if ($("modal").open) $("modal").close();
+  }
+  async function loadBotLink() {
     try {
-      state.manifest = await api("/static/assets/manifest.json");
+      const config = await api("/api/app-config", {
+        signal: AbortSignal.timeout(12000),
+      });
+      if (/^https:\/\/t\.me\/[A-Za-z0-9_]+$/.test(config.bot_url || "")) {
+        $("telegramOpen").href = config.bot_url;
+        $("telegramOpen").hidden = false;
+      }
     } catch {}
-    await loadSkins();
-  })();
-  (async () => {
-    try {
-      state.session = await api("/api/session");
-      await loadUser();
-      if (!state.session.authenticated)
-        $("balanceValue").textContent = "Kirish";
-    } catch (e) {
-      $("balanceValue").textContent = "Mavjud emas";
-      toast(e.message);
+  }
+  let authenticating = false;
+  async function authenticate() {
+    if (authenticating) return;
+    if (!tg?.initData) {
+      showGate(
+        "Bu sayt faqat Telegramda ishlaydi",
+        "Botdagi SkinSavo tugmasidan oching. Profil avtomatik yaratiladi.",
+      );
+      return;
     }
-  })();
+    authenticating = true;
+    showGate("Profilga kirilmoqda…", "Telegram hisobingiz tekshirilmoqda.");
+    try {
+      const session = await api("/api/session", {
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!session.authenticated || !session.user)
+        throw new Error("Kirish tasdiqlanmadi.");
+      state.session = session;
+      renderAccount(session.user);
+      document.body.dataset.auth = "ready";
+      try {
+        state.manifest = await api("/static/assets/manifest.json");
+      } catch {}
+      await loadSkins();
+    } catch (e) {
+      state.session = null;
+      showGate(
+        e.status === 401 ? "Telegramdan qayta oching" : "Ulanib bo‘lmadi",
+        e.status === 401
+          ? "Botdagi SkinSavo tugmasidan qayta kiring."
+          : "Internetni tekshiring va qayta urinib ko‘ring.",
+        e.status !== 401,
+      );
+    } finally {
+      authenticating = false;
+    }
+  }
+  $("authRetry").onclick = authenticate;
+  loadBotLink();
+  authenticate();
 })();

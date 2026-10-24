@@ -1365,3 +1365,76 @@ dialog p {
   color: #eee;
   text-shadow: 0 2px 12px #000;
 }
+body:not([data-auth="ready"]) > header,
+body:not([data-auth="ready"]) > .layout,
+body:not([data-auth="ready"]) > .skip {
+  display: none;
+}
+.telegram-gate {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 28px 20px;
+  background: radial-gradient(ellipse at center, var(--raised), var(--bg) 70%);
+}
+body[data-auth="ready"] .telegram-gate {
+  display: none;
+}
+.gate-card {
+  width: min(100%, 400px);
+  text-align: center;
+}
+.gate-card .brand {
+  justify-content: center;
+}
+.gate-symbol {
+  display: grid;
+  place-items: center;
+  margin: 44px auto 22px;
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--panel);
+}
+.gate-symbol svg {
+  width: 35px;
+  height: 35px;
+}
+.gate-card h1 {
+  font-size: clamp(22px, 5vw, 29px);
+  line-height: 1.3;
+  letter-spacing: -0.8px;
+}
+.gate-card p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+  margin: 16px 0 24px;
+}
+.gate-card .primary,
+.gate-card .secondary {
+  margin: 4px;
+}
+.header-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.profile-avatar {
+  width: 65px;
+  height: 65px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--raised);
+  font-size: 24px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

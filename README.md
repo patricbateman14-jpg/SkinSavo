@@ -13,11 +13,22 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python.exe -m uvicorn main:app --reload
 ```
 
-Open http://127.0.0.1:8000. The public catalog works without sign-in. Account,
-balance, purchase, sale and history require signed Telegram Mini App initData
-in X-Telegram-Init-Data. Set BOT_TOKEN and WEBAPP_URL to connect your bot;
-run python main.py as a separate bot process. ADMIN_TELEGRAM_ID grants the
-matching signed user access to the existing admin listing panel.
+Open http://127.0.0.1:8000 to see the Telegram-only gate. The application and
+every business API require Telegram-signed Mini App initData in
+X-Telegram-Init-Data. There is no password or browser registration flow.
+Set BOT_TOKEN and the production HTTPS WEBAPP_URL in Railway. Startup verifies
+the bot with getMe and configures its default SkinSavo Mini App menu button.
+BOT_USERNAME is optional and is resolved from the token. Run python main.py as
+a separate bot process to handle /start with the inline Mini App button.
+Do not start a second poller for an already running bot. ADMIN_TELEGRAM_ID grants
+the matching signed user access to the existing admin listing panel.
+
+Verified login automatically creates or updates ID, name, username, photo URL
+(when Telegram provides it), language and Premium flag. Balances and inventory
+are preserved. Usernames and photos are optional. Client-supplied profile fields
+are ignored. No phone number, password, or contact permission is requested.
+The gate remains until the backend confirms the Telegram signature. Forged,
+expired, duplicated or malformed credentials are rejected by the server.
 
 New accounts start at zero. Explicit demo top-ups add simulated funds. Demo
 purchases validate stock and balance in a SQLite write transaction and persist
@@ -45,16 +56,18 @@ its written layout specification.
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 node --check static/app.js
 npm.cmd install --no-save --package-lock=false playwright
+# In another terminal: .\.venv\Scripts\python.exe scripts/serve-browser-test.py
 node scripts/check-browser.cjs
 ```
 
-Browser checks require installed Chrome on Windows, a running local server and
-the existing 20-row demo catalog. Six viewport widths, images, overflow, search,
-combined category filters, reset, sorting, details, theme persistence, mobile
-filters, guest access and uncaught JavaScript errors are checked. Screenshots
-are saved to ignored test-results/. External Telegram SDK and Google fonts are
-stubbed in guest browser tests; signed authentication is tested through the API.
-No frontend compilation is required.
+Browser checks require installed Chrome on Windows and the isolated test launcher
+above. It copies the local catalog into a temporary database, uses a test-only
+token, and makes no Telegram API calls. Never deploy that launcher. Browser tests
+cover unsigned/forged rejection and HMAC-verified automatic login, then test six
+viewport widths, images, catalog controls, profile, inventory and theme. The
+Telegram SDK is simulated with test-signed initData; the actual backend signature
+check runs unchanged. Screenshots go to ignored test-results/. No frontend build
+is required. Actual Telegram-client login still needs a real user to open the bot.
 
 ## Deployment
 
@@ -64,7 +77,9 @@ persistent volume. Preserve that path and volume; never delete a database to
 refresh catalog data. Startup adds the inventory table without changing rows.
 
 Deploy the intended GitHub commit through the existing Railway service and
-verify both its commit and /api/health version 0.3.0. A healthy URL alone does
+verify both its commit and /api/health version 0.4.0. The health response reports
+telegram_configured, telegram_ready and telegram_menu_ready without credentials.
+A healthy URL alone does
 not prove the intended commit deployed.
 
 Production URL: https://skinsavo-web-production.up.railway.app/

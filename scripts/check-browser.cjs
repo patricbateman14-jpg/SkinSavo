@@ -1,18 +1,70 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
+const crypto = require("crypto");
 (async () => {
   const browser = await chromium.launch({
     executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
     headless: true,
   });
   const page = await browser.newPage();
+  const user = {
+    id: 999001,
+    first_name: "Aziz",
+    last_name: "Aliyev",
+    username: "aziz",
+    language_code: "uz",
+  };
+  function initData(token = "123456789:browser-test-secret-only") {
+    const fields = {
+      auth_date: String(Math.floor(Date.now() / 1000)),
+      user: JSON.stringify(user),
+    };
+    const secret = crypto
+      .createHmac("sha256", "WebAppData")
+      .update(token)
+      .digest();
+    fields.hash = crypto
+      .createHmac("sha256", secret)
+      .update(
+        Object.keys(fields)
+          .sort()
+          .map((k) => `${k}=${fields[k]}`)
+          .join("\n"),
+      )
+      .digest("hex");
+    return new URLSearchParams(fields).toString();
+  }
+  let telegramData = "";
   await page.route("https://telegram.org/**", (route) =>
-    route.fulfill({ body: "" }),
+    route.fulfill({
+      contentType: "application/javascript",
+      body: `window.Telegram={WebApp:{initData:${JSON.stringify(telegramData)},ready(){},expand(){},setHeaderColor(){}}};`,
+    }),
   );
   await page.route("https://fonts.googleapis.com/**", (route) => route.abort());
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   fs.mkdirSync("test-results", { recursive: true });
+  await page.goto("http://127.0.0.1:8000", { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => document.body.dataset.auth === "blocked");
+  if (await page.locator("header").isVisible())
+    throw Error("Guest can see app");
+  if (
+    !(await page.locator("#gateTitle").innerText()).includes("faqat Telegramda")
+  )
+    throw Error("Missing Telegram gate");
+  const blocked = await page.request.get("http://127.0.0.1:8000/api/skins");
+  if (blocked.status() !== 401) throw Error("Unsigned catalog API allowed");
+  telegramData = initData("wrong-secret");
+  await page.reload();
+  await page.waitForFunction(
+    () =>
+      document.body.dataset.auth === "blocked" &&
+      document.querySelector("#gateTitle").textContent.includes("qayta"),
+  );
+  if (await page.locator("header").isVisible())
+    throw Error("Forged session can see app");
+  telegramData = initData();
   for (const width of [1440, 1280, 1024, 768, 390, 360]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto("http://127.0.0.1:8000", { waitUntil: "domcontentloaded" });
@@ -83,17 +135,26 @@ const fs = require("fs");
         (i) => i.textContent === "Factory New",
       ),
   );
+  await page.locator('[data-action="profile"]').first().click();
+  await page.waitForSelector("dialog[open]");
+  if (
+    !(await page.locator("#modalContent").innerText()).includes("Aziz Aliyev")
+  )
+    throw Error("Automatic Telegram profile failed");
+  if (!(await page.locator("#modalContent").innerText()).includes("@aziz"))
+    throw Error("Username missing");
+  await page.keyboard.press("Escape");
   await page.locator('[data-action="inventory"]').first().click();
   await page.waitForSelector("dialog[open]");
   if (
-    !(await page.locator("#modalContent").innerText()).includes(
-      "Telegram orqali kiring",
+    !(await page.locator("#modalTitle").innerText()).includes(
+      "Sizning skinlaringiz",
     )
   )
-    throw Error("Guest auth failed");
+    throw Error("Inventory unavailable");
   if (errors.length) throw Error(errors.join("\n"));
   console.log(
-    "PASS: responsive, images, search, combined category, reset, sorting, detail, theme persistence, mobile drawer and guest authentication.",
+    "PASS: blocked browser and forged session, real server HMAC auto-login/profile, responsive catalog, filters, images, theme and inventory.",
   );
   await browser.close();
 })().catch((e) => {

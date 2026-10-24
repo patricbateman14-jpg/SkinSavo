@@ -10,10 +10,40 @@
     />
     <title>SkinSavo — CS2 SKIN MARKET</title>
     <link rel="icon" href="/static/assets/favicon.svg" type="image/svg+xml" />
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
-  <body>
+  <body data-auth="pending">
+    <section
+      class="telegram-gate"
+      id="telegramGate"
+      aria-labelledby="gateTitle"
+    >
+      <div class="gate-card">
+        <a class="brand" href="#"
+          ><b>S</b><span>SkinSavo<small>CS2 SKIN MARKET</small></span></a
+        >
+        <span class="gate-symbol" aria-hidden="true"
+          ><svg viewBox="0 0 24 24">
+            <path d="m3 10 18-7-4 18-6-6-4 3 1-6 9-6-7 8z" /></svg
+        ></span>
+        <h1 id="gateTitle">Bu sayt faqat Telegramda ishlaydi</h1>
+        <p id="gateMessage" role="status">
+          Botdagi SkinSavo tugmasidan oching. Profil avtomatik yaratiladi.
+        </p>
+        <a class="primary" id="telegramOpen" hidden
+          >Telegramda ochish <span aria-hidden="true">↗</span></a
+        >
+        <button class="secondary" id="authRetry" type="button" hidden>
+          Qayta urinish
+        </button>
+        <noscript
+          ><p>
+            Ilovani ochish uchun JavaScript yoqilgan bo‘lishi kerak.
+          </p></noscript
+        >
+      </div>
+    </section>
     <a class="skip" href="#catalog">Katalogga o‘tish</a>
     <header>
       <a class="brand" href="#"
@@ -182,6 +212,6 @@
       <div id="modalContent"></div>
     </dialog>
     <div id="toast" role="status"></div>
-    <script src="/static/app.js"></script>
+    <script defer src="/static/app.js"></script>
   </body>
 </html>

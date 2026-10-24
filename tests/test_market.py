@@ -33,6 +33,10 @@ class MarketTests(unittest.TestCase):
         self.client.close()
         self.temp.cleanup()
 
+    def get(self, path, **kwargs):
+        kwargs.setdefault('headers', self.headers())
+        return self.client.get(path, **kwargs)
+
     def headers(self, uid=1, expired=False):
         data = {'auth_date': str(int(time.time()) - (90000 if expired else 0)), 'user': json.dumps({'id':uid,'username':'tester'})}
         secret = hmac.new(b'WebAppData',main.BOT_TOKEN.encode(),hashlib.sha256).digest()
@@ -40,13 +44,13 @@ class MarketTests(unittest.TestCase):
         return {'X-Telegram-Init-Data':urlencode(data)}
 
     def test_combined_filters_and_sort(self):
-        result = self.client.get('/api/skins',params={'q':'Redline','category':'Rifles','rarity':'Classified','condition':'Field-Tested','sort':'price_desc'}).json()
+        result = self.get('/api/skins',params={'q':'Redline','category':'Rifles','rarity':'Classified','condition':'Field-Tested','sort':'price_desc'}).json()
         self.assertEqual(result['total'],1)
         self.assertEqual(result['catalog_total'],3)
         self.assertEqual(result['categories']['Pistols'],1)
-        self.assertEqual(self.client.get('/api/skins?category=Snipers&rarity=Classified').json()['total'],0)
-        self.assertEqual([s['price'] for s in self.client.get('/api/skins?sort=price_desc').json()['items']],[90,50,20])
-        self.assertEqual(self.client.get('/api/skins?offset=1&limit=1').json()['items'][0]['id'],2)
+        self.assertEqual(self.get('/api/skins?category=Snipers&rarity=Classified').json()['total'],0)
+        self.assertEqual([s['price'] for s in self.get('/api/skins?sort=price_desc').json()['items']],[90,50,20])
+        self.assertEqual(self.get('/api/skins?offset=1&limit=1').json()['items'][0]['id'],2)
 
     def test_authentication_and_ownership(self):
         self.assertEqual(self.client.get('/api/users/1').status_code,401)
@@ -69,14 +73,14 @@ class MarketTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/users/1',headers=headers).json()['balance'],50)
         main.init_db()
         self.assertEqual(len(self.client.get('/api/inventory',headers=headers).json()['items']),1)
-        self.assertEqual(self.client.get('/api/skins').json()['total'],3)
+        self.assertEqual(self.get('/api/skins').json()['total'],3)
 
     def test_admin_and_invalid_input(self):
         payload={'name':'Test','weapon':'AK-47','skin':'Test','rarity':'Covert','condition':'Factory New','price':10,'stock':1,'image':'https://example.com/test.png'}
         self.assertEqual(self.client.post('/api/admin/skins',json=payload,headers=self.headers(2)).status_code,403)
         self.assertEqual(self.client.post('/api/admin/skins',json=payload,headers=self.headers()).status_code,200)
         self.assertEqual(self.client.post('/api/demo/topup',json={'telegram_id':'1','amount':-1},headers=self.headers()).status_code,422)
-        self.assertEqual(self.client.get('/api/skins/999').status_code,404)
+        self.assertEqual(self.get('/api/skins/999').status_code,404)
 
     def test_static_assets(self):
         self.assertEqual(self.client.get('/').status_code,200)
@@ -103,7 +107,7 @@ class MarketTests(unittest.TestCase):
         self.client.post('/api/demo/topup',json={'telegram_id':'1','amount':50},headers=headers).raise_for_status()
         self.client.post('/api/demo/purchase',json={'skin_id':1},headers=headers).raise_for_status()
         self.client.delete('/api/admin/skins/1',headers=headers).raise_for_status()
-        self.assertEqual(self.client.get('/api/skins/1').status_code,404)
+        self.assertEqual(self.get('/api/skins/1').status_code,404)
         self.assertEqual(len(self.client.get('/api/inventory',headers=headers).json()['items']),1)
 
 
