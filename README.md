@@ -1,6 +1,7 @@
 ﻿# SkinSavo
 
-CS2 demo marketplace on the existing FastAPI / SQLite / vanilla JavaScript stack.
+CS2 demo marketplace on FastAPI / vanilla JavaScript, with shared SQLite or
+Supabase PostgreSQL storage for the site and Telegram bot.
 Monochrome interface with authentic colored product art. No real payments,
 Steam transfers or live market-price feed.
 
@@ -78,7 +79,7 @@ limits repeated chat actions.
 
 Webhook requests require X-Telegram-Bot-Api-Secret-Token. The secret is derived
 from BOT_TOKEN unless TELEGRAM_WEBHOOK_SECRET is explicitly configured. It is
-never returned to clients. Updates commit to a SQLite inbox before HTTP 200;
+never returned to clients. Updates commit to the configured database inbox before HTTP 200;
 duplicate update IDs are ignored. The worker preserves each user's update order,
 retries temporary failures up to five attempts, respects Telegram rate limits
 and recovers interrupted processing. Successful payloads are cleared, leaving
@@ -154,15 +155,84 @@ still needs a real user to open the bot.
 ## Deployment
 
 railway.json starts the existing ASGI app and checks /api/health. The existing
-Render blueprint is retained. Set DATABASE_PATH to the database on the existing
-persistent volume. Preserve that path and volume; never delete a database to
-refresh catalog data. Startup adds the inventory table without changing rows.
+Render blueprint is retained. Keep DATABASE_PATH pointing to the existing SQLite
+database and retain its persistent volume during the Supabase cutover.
+Startup adds missing tables/columns without replacing existing records.
+
+## Move existing data to Supabase
+
+The server uses a PostgreSQL connection URI, not the public publishable key.
+Copy the **Session pooler** URI from the Supabase project's Connect dialog into
+Railway's secret DATABASE_URL variable. Percent-encode special password
+characters. An example without credentials is in .env.example. TLS is required
+for external databases. The connection pool uses at most five connections per
+application process and also works with transaction pooling; search_path and
+time zone are set within each transaction.
+
+The target is the private **skinsavo** schema. It has RLS enabled and no grants
+to Supabase anon/authenticated roles. All site and bot access continues through
+the existing Telegram-verified backend. Publishable keys do not authorize reads
+or writes to these account tables. Supabase Auth is not required for Telegram login.
+
+1. Deploy this compatibility version with DATABASE_BACKEND=sqlite (the default).
+   DATABASE_URL may already be present. Confirm /api/health reports this commit
+   and database_backend=sqlite. This stage prepares the existing source for a
+   coordinated freeze; the URL alone does not activate a different database.
+2. Set DATABASE_BACKEND=postgres in Railway Variables and redeploy. The startup
+   freezes writes to the existing SQLite source, creates a same-volume snapshot,
+   imports all seven application tables in one PostgreSQL transaction, and checks
+   every row count and content checksum before committing. IDs, historical ID
+   sequences, profile fields, balances, history, inventory, support tickets,
+   conversation state and bot inbox records are retained. Expect a short
+   maintenance interval during the switch.
+3. Confirm /api/health reports database_backend=postgres and
+   database_migration_verified=true, plus the expected Git revision and bot
+   readiness. In Supabase Dashboard select the skinsavo schema to inspect tables.
+
+The original SQLite database remains frozen and its *.pre-supabase-*.db snapshot
+is retained. Neither is uploaded to Git. Subsequent restarts use the migration
+receipt and never re-import old balances over new PostgreSQL data. A missing
+source, an unprepared source, a nonempty unverified target or a copy mismatch
+stops the migration. PostgreSQL failures never switch the app back to SQLite.
+
+For manual operation inside the existing Railway service/volume:
+
+```sh
+python scripts/migrate_database.py --check
+python scripts/migrate_database.py
+```
+
+If an import fails after the source freeze, fix the target connection/data issue
+and redeploy to resume the same snapshot. To abandon an uncommitted import,
+restore DATABASE_BACKEND=sqlite and run
+`python scripts/migrate_database.py --abort-uncommitted` against that same source
+and target. It thaws SQLite only after proving the target has no migration
+receipt and no application rows. A committed cutover cannot be rolled back this
+way because PostgreSQL may already contain newer balances.
+
+PostgreSQL integration tests use an isolated local database and refuse a remote
+or differently named target. They reset only the dedicated test schema:
+
+```powershell
+docker run --detach --rm --name skinsavo-postgres-test --publish 127.0.0.1:55432:5432 --env POSTGRES_PASSWORD=skinsavo-local-test-only --env POSTGRES_DB=skinsavo_test postgres:17-alpine
+$env:TEST_POSTGRES_URL='postgresql://postgres:skinsavo-local-test-only@127.0.0.1:55432/skinsavo_test?sslmode=disable'
+.\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
+docker stop skinsavo-postgres-test
+```
+
+Without TEST_POSTGRES_URL, PostgreSQL integration checks are skipped; existing
+SQLite tests remain isolated from any production DATABASE_URL. Migration tests
+cover data preservation, restart/resume, rejected unsafe targets, backup recovery,
+concurrent purchases/sales, inbox locks, sequences and RLS.
+Connection reference: [Supabase PostgreSQL connections](https://supabase.com/docs/guides/database/connecting-to-postgres).
 
 Deploy the intended GitHub commit through the existing Railway service and
 verify both its commit and /api/health version 0.4.0. The health response reports
 telegram_configured, telegram_ready, telegram_menu_ready, telegram_webhook_ready
 and telegram_chat_worker_ready without credentials. Confirm both webhook and
-worker readiness when deploying chat changes. Bot and delivery tests mock all
+worker readiness when deploying chat changes. database_backend and
+database_migration_verified identify the active storage without revealing
+credentials. Bot and delivery tests mock all
 Telegram sends; production verification does not send unsolicited test messages.
 A healthy URL alone does
 not prove the intended commit deployed.

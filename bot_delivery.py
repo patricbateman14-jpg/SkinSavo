@@ -71,7 +71,7 @@ class TelegramDelivery:
                 event.get("from", {}).get("id", "update:" + str(payload["update_id"]))
             )
             result = conn.execute(
-                "INSERT OR IGNORE INTO telegram_updates(update_id,payload,owner_id) VALUES (?,?,?)",
+                "INSERT INTO telegram_updates(update_id,payload,owner_id) VALUES (?,?,?) ON CONFLICT(update_id) DO NOTHING",
                 (
                     payload["update_id"],
                     json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
@@ -83,19 +83,19 @@ class TelegramDelivery:
     def claim(self):
         now = time.time()
         with self.connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            conn.begin_write()
             conn.execute(
                 "UPDATE telegram_updates SET status='failed' WHERE status='processing' AND claimed_at<? AND attempts>=5",
                 (now - 120,),
             )
             # Recover interrupted processing after a process restart/expired lease.
-            row = conn.execute(
+            row = conn.select_for_update(
                 """SELECT * FROM telegram_updates AS current WHERE attempts < 5 AND
                 ((status='pending' AND available_at<=?) OR (status='processing' AND claimed_at<?))
                 AND NOT EXISTS (SELECT 1 FROM telegram_updates AS earlier WHERE earlier.owner_id=current.owner_id
                     AND earlier.update_id<current.update_id AND earlier.status IN ('pending','processing'))
                 ORDER BY update_id LIMIT 1""",
-                (now, now - 120),
+                (now, now - 120), skip_locked=True, of="current",
             ).fetchone()
             if not row:
                 return None

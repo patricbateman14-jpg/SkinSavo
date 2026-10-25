@@ -17,6 +17,8 @@ import main
 
 class TelegramAuthTests(unittest.TestCase):
     def setUp(self):
+        main.DATABASE_BACKEND = 'sqlite'
+        main.DATABASE_URL = ''
         self.temp = tempfile.TemporaryDirectory()
         main.DB_PATH = str(Path(self.temp.name) / 'test.db')
         main.BOT_TOKEN = '123456:unit-test-secret'

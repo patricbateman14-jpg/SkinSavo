@@ -7,3 +7,5 @@ test-results/
 *.db-journal
 *.db-wal
 *.db-shm
+*.pre-supabase-*.db
+*.migration-tmp

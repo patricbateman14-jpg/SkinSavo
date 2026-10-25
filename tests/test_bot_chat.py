@@ -53,6 +53,8 @@ class RecordingSession(BaseSession):
 
 class BotChatTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        main.DATABASE_BACKEND = 'sqlite'
+        main.DATABASE_URL = ''
         self.temp = tempfile.TemporaryDirectory()
         main.DB_PATH = str(Path(self.temp.name) / "chat.db")
         main.WEBAPP_URL = "https://skinsavo.example/"

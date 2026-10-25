@@ -518,7 +518,7 @@ class BotChat:
         def fetch():
             with self.s.connect() as conn:
                 row = conn.execute(
-                    "SELECT * FROM support_tickets WHERE id=? AND (telegram_id=? OR ?)",
+                    "SELECT * FROM support_tickets WHERE id=? AND (telegram_id=? OR ?=1)",
                     (ticket_id, str(uid), int(self.is_admin(uid))),
                 ).fetchone()
                 return dict(row) if row else None
@@ -666,7 +666,7 @@ class BotChat:
     def save_ticket(self, uid, message_id, text):
         with self.s.connect() as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO support_tickets(telegram_id,message_id,body) VALUES (?,?,?)",
+                "INSERT INTO support_tickets(telegram_id,message_id,body) VALUES (?,?,?) ON CONFLICT(telegram_id,message_id) DO NOTHING",
                 (str(uid), message_id, text),
             )
             row = conn.execute(

@@ -21,6 +21,8 @@ async def fixture_telegram(application):
 if __name__ == '__main__':
     with tempfile.TemporaryDirectory(prefix='skinsavo-browser-') as directory:
         main.DB_PATH = str(Path(directory) / 'fixture.db')
+        main.DATABASE_BACKEND = 'sqlite'
+        main.DATABASE_URL = ''
         with closing(sqlite3.connect((ROOT / 'skinsavo.db').as_uri() + '?mode=ro', uri=True)) as source:
             with closing(sqlite3.connect(main.DB_PATH)) as target:
                 source.backup(target)

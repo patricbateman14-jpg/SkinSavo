@@ -14,6 +14,8 @@ import main
 
 class MarketTests(unittest.TestCase):
     def setUp(self):
+        main.DATABASE_BACKEND = 'sqlite'
+        main.DATABASE_URL = ''
         self.temp = tempfile.TemporaryDirectory()
         main.DB_PATH = str(Path(self.temp.name) / 'test.db')
         main.BOT_TOKEN = 'test-only-token'

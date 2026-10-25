@@ -12,6 +12,7 @@ import time
 from contextlib import asynccontextmanager, contextmanager, suppress
 from pathlib import Path
 from typing import Any
+from decimal import Decimal
 from urllib.parse import parse_qsl, urlparse, urlencode, urlsplit, urlunsplit
 
 from aiogram import Bot, Dispatcher
@@ -23,12 +24,17 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from bot_chat import BotChat, BotServices, COMMANDS, init_chat_tables
 from bot_delivery import TelegramDelivery, init_delivery_tables, webhook_secret
+from storage import Database, StorageUnavailable, StorageFrozen, prepare_sqlite_metadata
+from storage_migration import migrate_to_postgres
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE_DIR / "skinsavo.db"))
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+DATABASE_BACKEND = os.getenv("DATABASE_BACKEND", "sqlite").strip().lower()
+database = Database(lambda: DB_PATH, lambda: DATABASE_URL, lambda: DATABASE_BACKEND)
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 WEBAPP_URL = os.getenv("WEBAPP_URL", "").strip()
 START_BALANCE = 0.0  # Only explicit demo top-ups credit simulated funds.
@@ -40,18 +46,17 @@ logger = logging.getLogger("skinsavo")
 
 @contextmanager
 def db():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    try:
-        with conn:
-            yield conn
-    finally:
-        conn.close()
+    with database.connection() as conn:
+        yield conn
 
 
 def init_db() -> None:
+    if database.is_postgres:
+        migrate_to_postgres(database)
+        app.state.database_migration_verified = True
+        return
     with db() as conn:
+        prepare_sqlite_metadata(conn)
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -118,7 +123,7 @@ def init_db() -> None:
 def user_payload(telegram_id: str, username: str = "") -> dict[str, Any]:
     with db() as conn:
         conn.execute(
-            "INSERT OR IGNORE INTO users (telegram_id, username, balance) VALUES (?, ?, ?)",
+            "INSERT INTO users (telegram_id, username, balance) VALUES (?, ?, ?) ON CONFLICT(telegram_id) DO NOTHING",
             (telegram_id, username, START_BALANCE),
         )
         if username:
@@ -143,7 +148,7 @@ def sync_telegram_profile(user: dict[str, Any], *, mini_app: bool = True) -> dic
     if parsed_photo.scheme != "https" or not parsed_photo.netloc:
         photo = ""
     with db() as conn:
-        conn.execute("INSERT OR IGNORE INTO users (telegram_id, username, balance) VALUES (?, ?, 0)",
+        conn.execute("INSERT INTO users (telegram_id, username, balance) VALUES (?, ?, 0) ON CONFLICT(telegram_id) DO NOTHING",
                      (uid, profile["username"]))
         conn.execute("""UPDATE users SET username=?, first_name=?, last_name=?, language_code=?, is_premium=?
                         WHERE telegram_id=?""",
@@ -237,10 +242,17 @@ async def lifespan(application: FastAPI):
             await delivery.close()
         application.state.telegram_delivery = None
         application.state.telegram_webhook_ready = False
+        database.close()
 
 
 app = FastAPI(title="SkinSavo API", version="0.4.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.exception_handler(StorageUnavailable)
+async def storage_error(request: Request, error: StorageUnavailable):
+    message = "Baza ko‘chirilmoqda. Birozdan keyin qayta urinib ko‘ring." if isinstance(error, StorageFrozen) else "Baza bilan ulanish tiklanmoqda. Qayta urinib ko‘ring."
+    return JSONResponse({"detail":message}, status_code=503, headers={"Retry-After":"5", "Cache-Control":"no-store"})
 
 
 @app.middleware("http")
@@ -366,11 +378,10 @@ def admin_create_skin(payload: SkinCreate, x_telegram_init_data: str = Header(de
     if not image.startswith(("https://", "http://")):
         raise HTTPException(status_code=422, detail="Rasm havolasi http:// yoki https:// bilan boshlanishi kerak")
     with db() as conn:
-        cur = conn.execute(
-            "INSERT INTO skins (name, weapon, skin, rarity, condition, price, stock, image, description, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
-            (payload.name.strip(), payload.weapon.strip(), payload.skin.strip(), payload.rarity.strip(), payload.condition.strip(), payload.price, payload.stock, image, payload.description.strip()),
-        )
-        row = conn.execute("SELECT * FROM skins WHERE id = ?", (cur.lastrowid,)).fetchone()
+        row = conn.execute(
+            "INSERT INTO skins (name, weapon, skin, rarity, condition, price, stock, image, description, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1) RETURNING *",
+            (payload.name.strip(), payload.weapon.strip(), payload.skin.strip(), payload.rarity.strip(), payload.condition.strip(), Decimal(str(payload.price)), payload.stock, image, payload.description.strip()),
+        ).fetchone()
     return {"item": dict(row), "ok": True}
 
 
@@ -391,6 +402,9 @@ def health():
         "catalog_source": "admin_managed",
         "version": "0.4.0",
         "revision": os.getenv("RAILWAY_GIT_COMMIT_SHA", ""),
+        "database_backend": DATABASE_BACKEND,
+        "database_target_configured": bool(DATABASE_URL),
+        "database_migration_verified": database.is_postgres and getattr(app.state, "database_migration_verified", False),
         "telegram_configured": bool(BOT_TOKEN),
         "telegram_ready": getattr(app.state, "telegram_ready", False),
         "telegram_menu_ready": getattr(app.state, "telegram_menu_ready", False),
@@ -427,7 +441,7 @@ async def telegram_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Telegram xabari noto‘g‘ri")
     try:
         await asyncio.to_thread(delivery.enqueue, payload)
-    except (sqlite3.OperationalError, OverflowError):
+    except (sqlite3.OperationalError, StorageUnavailable, OverflowError):
         raise HTTPException(status_code=503, detail="Keyinroq qayta urining")
     delivery.wake.set()
     return JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
@@ -503,7 +517,7 @@ def demo_topup(payload: DemoTopUp, x_telegram_init_data: str = Header(default=""
     with db() as conn:
         conn.execute(
             "UPDATE users SET balance = balance + ? WHERE telegram_id = ?",
-            (payload.amount, payload.telegram_id),
+            (Decimal(str(payload.amount)), payload.telegram_id),
         )
         conn.execute(
             """
@@ -512,7 +526,7 @@ def demo_topup(payload: DemoTopUp, x_telegram_init_data: str = Header(default=""
             """,
             (
                 payload.telegram_id,
-                payload.amount,
+                Decimal(str(payload.amount)),
                 "demo_topup",
                 "Simulated top-up; no real money",
             ),
@@ -564,11 +578,11 @@ def demo_purchase(payload: DemoPurchase, x_telegram_init_data: str = Header(defa
     uid = str(user["id"])
     user_payload(uid, user.get("username", ""))
     with db() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        skin = conn.execute("SELECT * FROM skins WHERE id = ? AND active = 1", (payload.skin_id,)).fetchone()
+        conn.begin_write()
+        balance = conn.select_for_update("SELECT balance FROM users WHERE telegram_id = ?", (uid,)).fetchone()[0]
+        skin = conn.select_for_update("SELECT * FROM skins WHERE id = ? AND active = 1", (payload.skin_id,)).fetchone()
         if not skin or skin["stock"] < 1:
             raise HTTPException(status_code=409, detail="Skin qoldig‘i mavjud emas")
-        balance = conn.execute("SELECT balance FROM users WHERE telegram_id = ?", (uid,)).fetchone()[0]
         if balance < skin["price"]:
             raise HTTPException(status_code=409, detail="Demo balans yetarli emas")
         conn.execute("UPDATE skins SET stock = stock - 1 WHERE id = ?", (skin["id"],))
@@ -591,8 +605,9 @@ def sell_demo_item(item_id: int, x_telegram_init_data: str = Header(default="", 
     user = telegram_user_from_init_data(x_telegram_init_data)
     uid = str(user["id"])
     with db() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        item = conn.execute("SELECT * FROM inventory WHERE id=? AND telegram_id=? AND status='owned'", (item_id, uid)).fetchone()
+        conn.begin_write()
+        conn.select_for_update("SELECT telegram_id FROM users WHERE telegram_id=?", (uid,)).fetchone()
+        item = conn.select_for_update("SELECT * FROM inventory WHERE id=? AND telegram_id=? AND status='owned'", (item_id, uid)).fetchone()
         if not item:
             raise HTTPException(status_code=404, detail="Inventar elementi topilmadi")
         conn.execute("UPDATE inventory SET status='sold' WHERE id=?", (item_id,))

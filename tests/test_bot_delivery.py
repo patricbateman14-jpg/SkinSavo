@@ -18,6 +18,8 @@ from bot_delivery import TelegramDelivery, webhook_secret
 
 class BotDeliveryTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        main.DATABASE_BACKEND = 'sqlite'
+        main.DATABASE_URL = ''
         self.temp = tempfile.TemporaryDirectory()
         main.DB_PATH = str(Path(self.temp.name) / "delivery.db")
         main.BOT_TOKEN = "123456789:delivery-test-only"
