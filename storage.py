@@ -276,6 +276,9 @@ class Database:
             conn = Connection(raw, True)
             conn.execute("SET LOCAL search_path TO skinsavo, pg_catalog")
             conn.execute("SET LOCAL TIME ZONE 'UTC'")
+            # Poolers may default to rounded float text. Preserve every bit of
+            # queue/session timestamps for both migration hashes and live reads.
+            conn.execute("SET LOCAL extra_float_digits=3")
             conn.execute("SET LOCAL statement_timeout='60s'")
             conn.execute("SET LOCAL lock_timeout='10s'")
             yield conn

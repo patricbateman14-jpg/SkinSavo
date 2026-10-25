@@ -183,6 +183,30 @@ class PostgresStorageTests(unittest.TestCase):
         with self.assertRaises(MigrationError):
             abort_uncommitted_migration(self.pg)
 
+    def test_pooler_float_formatting_preserves_queue_timestamps_exactly(self):
+        claimed_at = 1792912401.1234567
+        with main.db() as conn:
+            conn.execute(
+                "UPDATE telegram_updates SET claimed_at=?, available_at=? WHERE update_id=101",
+                (claimed_at, claimed_at + 60),
+            )
+        # Supabase's pooler defaults to 15 significant digits. Seed that real
+        # server setting to reproduce truncation in the DB-API text protocol.
+        pool = self.pg.pool()
+        raw = pool.acquire()
+        cursor = raw.cursor()
+        cursor.execute("SET SESSION extra_float_digits=0")
+        raw.commit()
+        cursor.close()
+        pool.release(raw)
+        self.migrate()
+        with self.pg.postgres_connection() as conn:
+            row = conn.execute(
+                "SELECT claimed_at,available_at FROM telegram_updates WHERE update_id=101"
+            ).fetchone()
+        self.assertEqual(row["claimed_at"], claimed_at)
+        self.assertEqual(row["available_at"], claimed_at + 60)
+
     def test_api_login_topup_purchase_sale_and_sequence_continue_after_import(self):
         self.migrate()
         session = self.client.get("/api/session", headers=self.headers())
