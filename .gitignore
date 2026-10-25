@@ -9,3 +9,4 @@ test-results/
 *.db-shm
 *.pre-supabase-*.db
 *.migration-tmp
+supabase/.temp/
