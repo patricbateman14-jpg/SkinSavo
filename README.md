@@ -54,8 +54,10 @@ It loads asynchronously: a slow SDK download cannot block verification or the
 page, and native controls are attached when it arrives.
 Plain Telegram browser tabs and old reply-keyboard buttons do not provide Mini
 App credentials: use the bot's SkinSavo menu button or a configured Main Mini App.
-The bot's /start handler removes old reply keyboards, replaces per-chat menu
-overrides and sends inline Mini App buttons. python main.py remains a local-only
+The bot's /start handler removes old reply keyboards and sends inline Mini App
+buttons before synchronizing the profile and clearing the previous conversation.
+The default menu is configured once at startup instead of before every reply.
+python main.py remains a local-only
 polling alternative and refuses to start when a webhook is already active.
 
 ## Bot chat
@@ -80,7 +82,9 @@ limits repeated chat actions.
 Webhook requests require X-Telegram-Bot-Api-Secret-Token. The secret is derived
 from BOT_TOKEN unless TELEGRAM_WEBHOOK_SECRET is explicitly configured. It is
 never returned to clients. Updates commit to the configured database inbox before HTTP 200;
-duplicate update IDs are ignored. The worker preserves each user's update order,
+duplicate update IDs are ignored. Up to four independent chats run concurrently,
+while the inbox preserves each user's update order. Intake and PostgreSQL claims
+use one database statement on the normal path. The worker
 retries temporary failures up to five attempts, respects Telegram rate limits
 and recovers interrupted processing. Successful payloads are cleared, leaving
 deduplication metadata. Failed inbox rows retain the payload for operator review.

@@ -1,6 +1,8 @@
+import asyncio
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher
@@ -164,7 +166,7 @@ class BotChatTests(unittest.IsolatedAsyncioTestCase):
             self.last().reply_markup.inline_keyboard[0][0].web_app.url,
             main.mini_app_launch_url(),
         )
-        self.assertTrue(
+        self.assertFalse(
             any(
                 call.__api_method__ == "setChatMenuButton"
                 for call in self.session.calls
@@ -175,6 +177,34 @@ class BotChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(
             "/profile?", self.last().reply_markup.inline_keyboard[0][0].web_app.url
         )
+
+    async def test_start_shows_usable_menu_before_slow_profile_write_finishes(self):
+        release_profile = asyncio.Event()
+        menu_sent = asyncio.Event()
+        original = self.chat.user
+
+        async def delayed_profile(user):
+            await release_profile.wait()
+            return await original(user)
+
+        def observe(method):
+            if method.__api_method__ == 'sendMessage' and getattr(method.reply_markup, 'inline_keyboard', None):
+                menu_sent.set()
+            return None
+
+        self.session.failure = observe
+        with patch.object(self.chat, 'user', side_effect=delayed_profile):
+            task = asyncio.create_task(self.message('/start'))
+            try:
+                await asyncio.wait_for(menu_sent.wait(), timeout=2)
+                self.assertFalse(task.done())
+                self.assertIn('Aziz &lt;b&gt;', self.last().text)
+                self.assertTrue(self.last().reply_markup.inline_keyboard[0][0].web_app)
+            finally:
+                release_profile.set()
+                await task
+        with main.db() as conn:
+            self.assertIsNotNone(conn.execute("SELECT 1 FROM users WHERE telegram_id='101'").fetchone())
 
     async def test_private_ownership_for_balance_inventory_history(self):
         self.seed_skins()

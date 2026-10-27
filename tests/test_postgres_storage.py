@@ -369,6 +369,18 @@ class PostgresStorageTests(unittest.TestCase):
         self.assertFalse(migrate_to_postgres(self.pg)["already_migrated"])
         self.assertEqual(len(list(self.source.parent.glob("*.pre-supabase-*.db"))), 1)
 
+    def test_atomic_queue_claim_serializes_a_chat_and_recovers_exhausted_head(self):
+        self.migrate()
+        delivery=TelegramDelivery(main.db,None,None)
+        delivery.enqueue({'update_id':102,'message':{'from':{'id':301}}})
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            rows=list(executor.map(lambda _:delivery.claim(),range(2)))
+        self.assertEqual(sum(row is not None for row in rows),1)
+        with main.db() as conn:
+            conn.execute("UPDATE telegram_updates SET attempts=5, claimed_at=? WHERE update_id=101", (time.time()-121,))
+        self.assertEqual(delivery.claim()['update_id'],102)
+        with main.db() as conn:
+            self.assertEqual(conn.execute('SELECT status FROM telegram_updates WHERE update_id=101').fetchone()[0],'failed')
     def test_abort_then_new_writes_creates_a_new_snapshot(self):
         self.pg.init_postgres_schema()
         first, _ = freeze_and_backup(self.source, self.pg)

@@ -1,4 +1,4 @@
-"""Durable webhook inbox: acknowledge only after SQLite commits the update."""
+"""Durable webhook inbox: independent chats run concurrently, each chat stays ordered."""
 
 from __future__ import annotations
 
@@ -48,6 +48,8 @@ def init_delivery_tables(conn):
 
 
 class TelegramDelivery:
+    MAX_IN_FLIGHT = 4
+
     def __init__(self, connect, dispatcher, bot):
         self.connect, self.dispatcher, self.bot = connect, dispatcher, bot
         self.wake = asyncio.Event()
@@ -55,34 +57,57 @@ class TelegramDelivery:
 
     def enqueue(self, payload):
         with self.connect() as conn:
-            # Duplicates, including completed updates, never re-enter the inbox.
-            if conn.execute(
-                "SELECT 1 FROM telegram_updates WHERE update_id=?",
-                (payload["update_id"],),
-            ).fetchone():
-                return False
-            pending = conn.execute(
-                "SELECT COUNT(*) FROM telegram_updates WHERE status IN ('pending','processing')"
-            ).fetchone()[0]
-            if pending >= 10000:
-                raise OverflowError("Inbox full")
             event = payload.get("callback_query") or payload.get("message") or {}
             owner = str(
                 event.get("from", {}).get("id", "update:" + str(payload["update_id"]))
             )
             result = conn.execute(
-                "INSERT INTO telegram_updates(update_id,payload,owner_id) VALUES (?,?,?) ON CONFLICT(update_id) DO NOTHING",
+                "INSERT INTO telegram_updates(update_id,payload,owner_id) "
+                "SELECT ?,?,? WHERE (SELECT COUNT(*) FROM telegram_updates "
+                "WHERE status IN ('pending','processing')) < 10000 "
+                "ON CONFLICT(update_id) DO NOTHING RETURNING update_id",
                 (
                     payload["update_id"],
                     json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
                     owner,
                 ),
             )
-            return result.rowcount == 1
+            if result.fetchone():
+                return True
+            # A duplicate still succeeds when the queue is full. Only new
+            # updates are rejected so Telegram can redeliver them later.
+            if conn.execute("SELECT 1 FROM telegram_updates WHERE update_id=?", (payload["update_id"],)).fetchone():
+                return False
+            raise OverflowError("Inbox full")
 
     def claim(self):
         now = time.time()
         with self.connect() as conn:
+            if conn.postgres:
+                # Claim in one server statement. The earlier-message check and
+                # row locks prevent two workers from processing the same chat.
+                row = conn.execute(
+                    """WITH expired AS (
+                        UPDATE telegram_updates SET status='failed'
+                        WHERE status='processing' AND claimed_at<? AND attempts>=5
+                        RETURNING update_id
+                    ), candidate AS (
+                        SELECT current.update_id FROM telegram_updates AS current
+                        WHERE attempts<5 AND ((status='pending' AND available_at<=?)
+                            OR (status='processing' AND claimed_at<?))
+                        AND NOT EXISTS (
+                            SELECT 1 FROM telegram_updates AS earlier
+                            WHERE earlier.owner_id=current.owner_id AND earlier.update_id<current.update_id
+                            AND earlier.status IN ('pending','processing')
+                            AND earlier.update_id NOT IN (SELECT update_id FROM expired)
+                        )
+                        ORDER BY update_id LIMIT 1 FOR UPDATE OF current SKIP LOCKED
+                    ) UPDATE telegram_updates AS claimed SET status='processing',
+                        attempts=claimed.attempts+1, claimed_at=?
+                    FROM candidate WHERE claimed.update_id=candidate.update_id RETURNING claimed.*""",
+                    (now - 120, now, now - 120, now),
+                ).fetchone()
+                return dict(row) if row else None
             conn.begin_write()
             conn.execute(
                 "UPDATE telegram_updates SET status='failed' WHERE status='processing' AND claimed_at<? AND attempts>=5",
@@ -135,6 +160,10 @@ class TelegramDelivery:
         row = await asyncio.to_thread(self.claim)
         if row is None:
             return False
+        await self.process_claimed(row)
+        return True
+
+    async def process_claimed(self, row):
         try:
             update = Update.model_validate(
                 json.loads(row["payload"]), context={"bot": self.bot}
@@ -149,23 +178,36 @@ class TelegramDelivery:
             await asyncio.to_thread(self.retry, row, error)
         else:
             await asyncio.to_thread(self.finish, row["update_id"])
-        return True
+
+    async def handle_claimed(self, row):
+        try:
+            await self.process_claimed(row)
+        except Exception as error:
+            logger.warning("Bot inbox temporarily unavailable (%s)", type(error).__name__)
+        finally:
+            self.wake.set()
 
     async def run(self):
-        while True:
-            self.wake.clear()
-            try:
-                processed = await self.process_once()
-            except Exception as error:
-                logger.warning(
-                    "Bot inbox temporarily unavailable (%s)", type(error).__name__
-                )
-                processed = False
-            if processed:
-                await asyncio.sleep(0.1)
-            else:
+        pending = set()
+        try:
+            while True:
+                self.wake.clear()
+                pending = {task for task in pending if not task.done()}
+                if len(pending) < self.MAX_IN_FLIGHT:
+                    try:
+                        row = await asyncio.to_thread(self.claim)
+                    except Exception as error:
+                        logger.warning("Bot inbox temporarily unavailable (%s)", type(error).__name__)
+                        row = None
+                    if row:
+                        pending.add(asyncio.create_task(self.handle_claimed(row)))
+                        continue
                 with suppress(asyncio.TimeoutError):
                     await asyncio.wait_for(self.wake.wait(), timeout=1)
+        finally:
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
 
     def start(self):
         self.task = asyncio.create_task(self.run(), name="skinsavo-bot-inbox")

@@ -148,6 +148,53 @@ class BotDeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(await self.delivery.process_once())
         self.assertEqual(self.dp.feed_update.await_count, 5)
 
+    async def test_full_queue_accepts_duplicates_but_rejects_new_updates(self):
+        self.delivery.enqueue(self.payload)
+        with main.db() as conn:
+            conn.execute("""WITH RECURSIVE numbers(n) AS (
+                SELECT 1000 UNION ALL SELECT n+1 FROM numbers WHERE n<10998
+            ) INSERT INTO telegram_updates(update_id,payload) SELECT n,'{}' FROM numbers""")
+        self.assertFalse(self.delivery.enqueue(self.payload))
+        with self.assertRaises(OverflowError):
+            self.delivery.enqueue({**self.payload, 'update_id':99999})
+
+    async def test_slow_chat_does_not_hold_other_chats_and_own_messages_stay_ordered(self):
+        for update_id, uid in ((123,101),(124,101),(125,202)):
+            payload=json.loads(json.dumps(self.payload))
+            payload['update_id']=update_id
+            payload['message']['from']['id']=uid
+            payload['message']['chat']['id']=uid
+            self.delivery.enqueue(payload)
+        release_first=asyncio.Event()
+        other_started=asyncio.Event()
+        second_started=asyncio.Event()
+
+        async def dispatch(bot, update):
+            if update.update_id==123:
+                await release_first.wait()
+            elif update.update_id==124:
+                second_started.set()
+            else:
+                other_started.set()
+
+        self.dp.feed_update.side_effect=dispatch
+        self.delivery.start()
+        try:
+            await asyncio.wait_for(other_started.wait(), timeout=3)
+            self.assertFalse(second_started.is_set())
+            release_first.set()
+            await asyncio.wait_for(second_started.wait(), timeout=3)
+            async with asyncio.timeout(3):
+                while True:
+                    with main.db() as conn:
+                        unfinished=conn.execute("SELECT COUNT(*) FROM telegram_updates WHERE status!='done'").fetchone()[0]
+                    if not unfinished:
+                        break
+                    await asyncio.sleep(0.02)
+        finally:
+            release_first.set()
+            await self.delivery.close()
+
     async def test_retry_after_and_blocked_user(self):
         self.delivery.enqueue(self.payload)
         self.dp.feed_update.side_effect = TelegramRetryAfter(

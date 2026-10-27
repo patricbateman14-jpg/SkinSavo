@@ -20,7 +20,6 @@ from aiogram.types import (
 )
 from aiogram.types import (
     LinkPreviewOptions,
-    MenuButtonWebApp,
     Message,
     ReplyKeyboardRemove,
     WebAppInfo,
@@ -233,25 +232,20 @@ class BotChat:
     async def start(self, message: Message, bot: Bot):
         if not self.private(message):
             return
-        user = await self.user(message.from_user)
-        await asyncio.to_thread(self.clear_mode, message.from_user.id)
-        if self.s.web_ready():
-            try:
-                await bot.set_chat_menu_button(
-                    chat_id=message.chat.id,
-                    menu_button=MenuButtonWebApp(
-                        text="SkinSavo", web_app=WebAppInfo(url=self.s.launch_url())
-                    ),
-                    request_timeout=5,
-                )
-            except Exception:
-                pass  # The inline web_app button remains usable if menu refresh fails.
+        # The update transport already authenticated this name. Show the reply
+        # before profile/session writes; the global Web App menu is set at startup.
         await message.answer("🎮 SkinSavo", reply_markup=ReplyKeyboardRemove())
-        name = html.escape(user["first_name"] or "do‘stim")
+        name = html.escape(message.from_user.first_name or "do‘stim")
         await self.show(
             message,
             f"<b>Salom, {name}!</b>\nCS2 skinlaringiz — bir joyda. Kerakli bo‘limni tanlang.\n\n<i>Demo rejim · haqiqiy to‘lov yo‘q.</i>",
             self.menu_keyboard(message.from_user.id),
+        )
+        # Finish both before releasing this chat's queue position, so subsequent
+        # commands see a persisted profile and the cleared conversation state.
+        await asyncio.gather(
+            self.user(message.from_user),
+            asyncio.to_thread(self.clear_mode, message.from_user.id),
         )
 
     async def menu(self, message: Message, bot: Bot = None):
@@ -265,8 +259,9 @@ class BotChat:
             self.menu_keyboard(message.from_user.id),
         )
 
-    async def view(self, target, user, section, page=0):
-        profile = await self.user(user)
+    async def view(self, target, user, section, page=0, *, profile=None):
+        if profile is None:
+            profile = await self.user(user)
         uid = str(user.id)
         if section not in ("support", "search"):
             mode = await asyncio.to_thread(self.mode, uid)
@@ -555,14 +550,14 @@ class BotChat:
             await callback.answer()
         except TelegramBadRequest:
             pass  # Expired spinner acknowledgements must not block the actual action.
-        await self.user(callback.from_user)
+        profile = await self.user(callback.from_user)
         action = callback.data[3:]
         if action == "all":
             await asyncio.to_thread(self.set_mode, callback.from_user.id, "catalog", "")
-            return await self.view(callback, callback.from_user, "catalog")
+            return await self.view(callback, callback.from_user, "catalog", profile=profile)
         if action == "cancel":
             await asyncio.to_thread(self.clear_mode, callback.from_user.id)
-            return await self.view(callback, callback.from_user, "menu")
+            return await self.view(callback, callback.from_user, "menu", profile=profile)
         if action.startswith("faq:"):
             title, body = FAQ.get(action[4:], FAQ["login"])
             return await self.show(
@@ -579,7 +574,7 @@ class BotChat:
                 return await self.item(callback, callback.from_user.id, number)
             if section == "ticket":
                 return await self.ticket(callback, callback.from_user.id, number)
-            return await self.view(callback, callback.from_user, section, number)
+            return await self.view(callback, callback.from_user, section, number, profile=profile)
         if action in (
             "menu",
             "profile",
@@ -590,7 +585,7 @@ class BotChat:
             "admin",
             "unavailable",
         ):
-            return await self.view(callback, callback.from_user, action)
+            return await self.view(callback, callback.from_user, action, profile=profile)
         await self.show(
             callback,
             "Bu tugma eskirgan. Menyudan qayta tanlang.",
