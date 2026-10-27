@@ -7,6 +7,7 @@ import queue
 import re
 import sqlite3
 import ssl
+import sys
 import threading
 import time
 import uuid
@@ -16,6 +17,14 @@ from pathlib import Path
 from urllib.parse import parse_qsl, unquote, urlsplit
 
 import pg8000.dbapi as postgres
+
+if sys.platform == "win32":
+    native_postgres = None  # Keep the 32-bit Windows development environment usable.
+else:
+    import psycopg as native_postgres
+
+POSTGRES_DRIVER = "psycopg" if native_postgres else "pg8000"
+POSTGRES_ERRORS = (postgres.Error,) + ((native_postgres.Error,) if native_postgres else ())
 
 # pg8000 supports DB-API qmark bindings natively. This project is its only caller.
 postgres.paramstyle = "qmark"
@@ -68,7 +77,14 @@ class Connection:
     def execute(self, query, values=()):
         if self.postgres:
             cursor = self.raw.cursor()
-            cursor.execute(query, values)
+            if native_postgres and isinstance(self.raw, native_postgres.Connection):
+                if values:
+                    query, values = postgres.convert_paramstyle("qmark", query, values)
+                    cursor.execute(query, values)
+                else:
+                    cursor.execute(query)
+            else:
+                cursor.execute(query, values)
         else:
             values = tuple(
                 str(value) if isinstance(value, Decimal) else value for value in values
@@ -204,7 +220,23 @@ class PostgresPool:
                         self.count += 1
                 if create:
                     try:
-                        conn = postgres.connect(**self.settings)
+                        if native_postgres:
+                            settings = dict(self.settings)
+                            tls = settings.pop("ssl_context")
+                            settings["dbname"] = settings.pop("database")
+                            settings["connect_timeout"] = settings.pop("timeout")
+                            settings["sslmode"] = (
+                                "disable" if tls is False else "require" if tls.verify_mode == ssl.CERT_NONE
+                                else "verify-full" if tls.check_hostname else "verify-ca"
+                            )
+                            if settings["sslmode"].startswith("verify-"):
+                                settings["sslrootcert"] = "system"
+                            conn = native_postgres.connect(
+                                **settings, autocommit=True, prepare_threshold=None,
+                                cursor_factory=native_postgres.RawCursor,
+                            )
+                        else:
+                            conn = postgres.connect(**self.settings)
                         # Database opens each transaction explicitly together
                         # with its settings, avoiding a separate implicit BEGIN.
                         conn.autocommit = True
@@ -291,20 +323,20 @@ class Database:
                     "SET LOCAL statement_timeout='60s'; SET LOCAL lock_timeout='10s'"
                 )
                 break
-            except (postgres.Error, OSError, TimeoutError):
+            except POSTGRES_ERRORS + (OSError, TimeoutError):
                 pool.release(raw, broken=True)
                 if attempt:
                     raise StorageUnavailable("PostgreSQL transaction is unavailable") from None
         broken = False
         try:
             yield conn
-            raw.commit()
-        except (postgres.Error, OSError, TimeoutError):
+            conn.execute("COMMIT")
+        except POSTGRES_ERRORS + (OSError, TimeoutError):
             broken = True
             raise StorageUnavailable("PostgreSQL transaction is unavailable") from None
         except BaseException:
             try:
-                raw.rollback()
+                conn.execute("ROLLBACK")
             except Exception:
                 broken = True
             raise

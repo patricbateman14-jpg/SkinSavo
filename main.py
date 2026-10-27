@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from bot_chat import BotChat, BotServices, COMMANDS, init_chat_tables
 from bot_delivery import TelegramDelivery, init_delivery_tables, webhook_secret
-from storage import Database, StorageUnavailable, StorageFrozen, prepare_sqlite_metadata
+from storage import Database, StorageUnavailable, StorageFrozen, prepare_sqlite_metadata, POSTGRES_DRIVER
 from storage_migration import migrate_to_postgres
 
 load_dotenv()
@@ -413,6 +413,7 @@ def health():
         "version": "0.4.0",
         "revision": os.getenv("RAILWAY_GIT_COMMIT_SHA", ""),
         "database_backend": DATABASE_BACKEND,
+        "database_driver": POSTGRES_DRIVER if database.is_postgres else "sqlite3",
         "database_target_configured": bool(DATABASE_URL),
         "database_migration_verified": database.is_postgres and getattr(app.state, "database_migration_verified", False),
         "telegram_configured": bool(BOT_TOKEN),

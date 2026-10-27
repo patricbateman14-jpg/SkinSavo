@@ -169,6 +169,8 @@ for external databases. The connection pool uses at most five connections per
 application process and also works with transaction pooling; search_path and
 time zone are set within each transaction. Transaction setup is sent in one
 network round trip; recently used pooled connections skip redundant pings.
+Production uses psycopg with server-bound parameters and automatic prepared
+statements disabled for pooler compatibility; 32-bit Windows uses pg8000.
 Keep the Railway service close to the Supabase database (production uses
 Singapore with the Sydney Supabase project) to avoid cross-continent latency.
 
