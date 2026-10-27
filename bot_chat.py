@@ -177,10 +177,6 @@ class BotChat:
     def menu_keyboard(self, uid):
         rows = [
             [self.web("🎮 Ilovani ochish")],
-            [self.cb("🛍 Skinlar", "catalog:0"), self.cb("🔎 Qidirish", "search")],
-            [self.cb("👤 Profil", "profile"), self.cb("💰 Balans", "balance")],
-            [self.cb("🎒 Inventar", "inventory:0"), self.cb("📜 Tarix", "history:0")],
-            [self.cb("❓ Yordam", "help"), self.cb("💬 Murojaat", "support")],
         ]
         if self.is_admin(uid):
             rows.append([self.cb("⚙️ Administrator", "admin")])
@@ -238,7 +234,7 @@ class BotChat:
         name = html.escape(message.from_user.first_name or "do‘stim")
         await self.show(
             message,
-            f"<b>Salom, {name}!</b>\nCS2 skinlaringiz — bir joyda. Kerakli bo‘limni tanlang.\n\n<i>Demo rejim · haqiqiy to‘lov yo‘q.</i>",
+            f"<b>Salom, {name}!</b>\nCS2 skinlaringiz — ilovada.\n\n<i>Demo rejim · haqiqiy to‘lov yo‘q.</i>",
             self.menu_keyboard(message.from_user.id),
         )
         # Finish both before releasing this chat's queue position, so subsequent
@@ -255,7 +251,7 @@ class BotChat:
         await asyncio.to_thread(self.clear_mode, message.from_user.id)
         await self.show(
             message,
-            "🎮 <b>SkinSavo</b>\nKerakli bo‘limni tanlang.",
+            "🎮 <b>SkinSavo</b>\nIlovani oching.",
             self.menu_keyboard(message.from_user.id),
         )
 
@@ -271,7 +267,7 @@ class BotChat:
             await asyncio.to_thread(self.clear_mode, uid)
             return await self.show(
                 target,
-                "🎮 <b>SkinSavo</b>\nKerakli bo‘limni tanlang.",
+                "🎮 <b>SkinSavo</b>\nIlovani oching.",
                 self.menu_keyboard(uid),
             )
         if section == "profile":

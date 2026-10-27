@@ -62,8 +62,9 @@ polling alternative and refuses to start when a webhook is already active.
 
 ## Bot chat
 
-Private chat includes a compact inline menu, profile, demo balance, inventory,
-history, paginated skin catalog, skin details, name search, help and support.
+The primary chat menu opens the Mini App; its previous catalog, search, profile,
+balance, inventory, history, help and support buttons are removed. Administrators
+also retain their management button. Existing typed chat commands remain available.
 Commands are installed in Telegram's command menu. Ordinary skin-name messages
 search the same database as the site; common Uzbek menu/login phrases also work.
 Buttons open the relevant Mini App URL with the existing signed automatic login.

@@ -161,7 +161,7 @@ class BotChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.messages()[0].reply_markup.remove_keyboard)
         self.assertIn("Aziz &lt;b&gt;", self.last().text)
         self.assertIn("Demo", self.last().text)
-        self.assertEqual(len(self.last().reply_markup.inline_keyboard), 5)
+        self.assertEqual(len(self.last().reply_markup.inline_keyboard), 1)
         self.assertEqual(
             self.last().reply_markup.inline_keyboard[0][0].web_app.url,
             main.mini_app_launch_url(),
