@@ -207,6 +207,27 @@ class PostgresStorageTests(unittest.TestCase):
         self.assertEqual(row["claimed_at"], claimed_at)
         self.assertEqual(row["available_at"], claimed_at + 60)
 
+    def test_recently_closed_pool_socket_recovers_before_running_work(self):
+        self.migrate()
+        pool = self.pg.pool()
+        raw = pool.acquire()
+        raw.close()
+        pool.release(raw)
+        with self.pg.postgres_connection() as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0], 1)
+
+    def test_reused_connection_rolls_back_failed_work_and_restores_local_settings(self):
+        self.migrate()
+        with self.assertRaisesRegex(ValueError, "cancel work"):
+            with self.pg.postgres_connection() as conn:
+                conn.execute("UPDATE users SET balance=0 WHERE telegram_id='301'")
+                conn.execute("SET LOCAL search_path=public")
+                conn.execute("SET LOCAL extra_float_digits=0")
+                raise ValueError("cancel work")
+        with self.pg.postgres_connection() as conn:
+            self.assertEqual(conn.execute("SELECT balance FROM users WHERE telegram_id='301'").fetchone()[0], Decimal("42.3"))
+            self.assertEqual(conn.execute("SHOW extra_float_digits").fetchone()[0], "3")
+
     def test_api_login_topup_purchase_sale_and_sequence_continue_after_import(self):
         self.migrate()
         session = self.client.get("/api/session", headers=self.headers())

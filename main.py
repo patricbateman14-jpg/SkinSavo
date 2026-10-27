@@ -122,19 +122,25 @@ def init_db() -> None:
 
 def user_payload(telegram_id: str, username: str = "") -> dict[str, Any]:
     with db() as conn:
-        conn.execute(
-            "INSERT INTO users (telegram_id, username, balance) VALUES (?, ?, ?) ON CONFLICT(telegram_id) DO NOTHING",
-            (telegram_id, username, START_BALANCE),
-        )
-        if username:
-            conn.execute(
-                "UPDATE users SET username = ? WHERE telegram_id = ? AND (username = '' OR username IS NULL)",
-                (username, telegram_id),
-            )
         row = conn.execute(
             "SELECT * FROM users WHERE telegram_id = ?",
             (telegram_id,),
         ).fetchone()
+        if row is None:
+            row = conn.execute(
+                "INSERT INTO users (telegram_id, username, balance) VALUES (?, ?, ?) "
+                "ON CONFLICT(telegram_id) DO UPDATE SET username=CASE "
+                "WHEN users.username='' OR users.username IS NULL THEN excluded.username "
+                "ELSE users.username END RETURNING *",
+                (telegram_id, username, START_BALANCE),
+            ).fetchone()
+        elif username and not row["username"]:
+            row = conn.execute(
+                "UPDATE users SET username=? WHERE telegram_id=? AND (username='' OR username IS NULL) RETURNING *",
+                (username, telegram_id),
+            ).fetchone() or conn.execute(
+                "SELECT * FROM users WHERE telegram_id=?", (telegram_id,)
+            ).fetchone()
     return dict(row)
 
 
@@ -147,16 +153,20 @@ def sync_telegram_profile(user: dict[str, Any], *, mini_app: bool = True) -> dic
     parsed_photo = urlparse(photo)
     if parsed_photo.scheme != "https" or not parsed_photo.netloc:
         photo = ""
+    # One atomic upsert replaces three writes and a read on every login. Bot
+    # updates preserve the photo and last-login timestamp from the Mini App.
+    login = "CURRENT_TIMESTAMP" if mini_app else "NULL"
+    login_update = ", photo_url=excluded.photo_url, last_login_at=excluded.last_login_at" if mini_app else ""
     with db() as conn:
-        conn.execute("INSERT INTO users (telegram_id, username, balance) VALUES (?, ?, 0) ON CONFLICT(telegram_id) DO NOTHING",
-                     (uid, profile["username"]))
-        conn.execute("""UPDATE users SET username=?, first_name=?, last_name=?, language_code=?, is_premium=?
-                        WHERE telegram_id=?""",
-                     (profile["username"], profile["first_name"], profile["last_name"],
-                      profile["language_code"], int(user.get("is_premium") is True), uid))
-        if mini_app:
-            conn.execute("UPDATE users SET photo_url=?, last_login_at=CURRENT_TIMESTAMP WHERE telegram_id=?", (photo, uid))
-        row = conn.execute("SELECT * FROM users WHERE telegram_id=?", (uid,)).fetchone()
+        row = conn.execute(
+            "INSERT INTO users (telegram_id,username,first_name,last_name,language_code,is_premium,photo_url,last_login_at) "
+            f"VALUES (?,?,?,?,?,?,?,{login}) ON CONFLICT(telegram_id) DO UPDATE SET "
+            "username=excluded.username, first_name=excluded.first_name, last_name=excluded.last_name, "
+            "language_code=excluded.language_code, is_premium=excluded.is_premium"
+            + login_update + " RETURNING *",
+            (uid, profile["username"], profile["first_name"], profile["last_name"],
+             profile["language_code"], int(user.get("is_premium") is True), photo if mini_app else ""),
+        ).fetchone()
     result = dict(row)
     result["is_premium"] = bool(result["is_premium"])
     return result

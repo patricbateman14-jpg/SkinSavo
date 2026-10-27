@@ -74,6 +74,18 @@ class TelegramAuthTests(unittest.TestCase):
         self.assertEqual(result.json()['username'], '')
         self.assertEqual(result.json()['first_name'], 'Aziz')
 
+    def test_bot_profile_refresh_preserves_mini_app_photo_login_and_balance(self):
+        original = self.session(self.signed()).json()['user']
+        with main.db() as conn:
+            conn.execute('UPDATE users SET balance=125 WHERE telegram_id=?', (str(self.user['id']),))
+        bot_user = {**self.user, 'first_name':'Updated in bot'}
+        bot_user.pop('photo_url')
+        refreshed = main.sync_telegram_profile(bot_user, mini_app=False)
+        self.assertEqual(refreshed['first_name'], 'Updated in bot')
+        self.assertEqual(refreshed['photo_url'], original['photo_url'])
+        self.assertEqual(refreshed['last_login_at'], original['last_login_at'])
+        self.assertEqual(refreshed['balance'], 125)
+
     def test_unsigned_browser_and_all_private_routes_blocked(self):
         for path in ('/api/session','/api/skins','/api/skins/1','/api/inventory','/api/users/1','/api/users/1/history'):
             with self.subTest(path=path):

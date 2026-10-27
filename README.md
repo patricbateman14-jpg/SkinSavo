@@ -167,7 +167,10 @@ Railway's secret DATABASE_URL variable. Percent-encode special password
 characters. An example without credentials is in .env.example. TLS is required
 for external databases. The connection pool uses at most five connections per
 application process and also works with transaction pooling; search_path and
-time zone are set within each transaction.
+time zone are set within each transaction. Transaction setup is sent in one
+network round trip; recently used pooled connections skip redundant pings.
+Keep the Railway service close to the Supabase database (production uses
+Singapore with the Sydney Supabase project) to avoid cross-continent latency.
 
 The target is the private **skinsavo** schema. It has RLS enabled and no grants
 to Supabase anon/authenticated roles. All site and bot access continues through

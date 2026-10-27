@@ -196,7 +196,7 @@ class PostgresPool:
             if self.closed:
                 raise StorageUnavailable("PostgreSQL pool is closed")
             try:
-                conn = self.idle.get_nowait()
+                idle_since, conn = self.idle.get_nowait()
             except queue.Empty:
                 with self.lock:
                     create = self.count < self.maximum
@@ -204,7 +204,11 @@ class PostgresPool:
                         self.count += 1
                 if create:
                     try:
-                        return postgres.connect(**self.settings)
+                        conn = postgres.connect(**self.settings)
+                        # Database opens each transaction explicitly together
+                        # with its settings, avoiding a separate implicit BEGIN.
+                        conn.autocommit = True
+                        return conn
                     except Exception:
                         with self.lock:
                             self.count -= 1
@@ -212,9 +216,13 @@ class PostgresPool:
                             "PostgreSQL connection is unavailable"
                         ) from None
                 try:
-                    conn = self.idle.get(timeout=0.2)
+                    idle_since, conn = self.idle.get(timeout=0.2)
                 except queue.Empty:
                     continue
+            # Recently used sockets were already checked by a completed
+            # transaction. A ping on every borrow costs a remote round trip.
+            if time.monotonic() - idle_since < 30:
+                return conn
             try:
                 cursor = conn.cursor()
                 cursor.execute("SELECT 1")
@@ -230,13 +238,14 @@ class PostgresPool:
         if broken or self.closed:
             self.discard(conn)
         else:
-            self.idle.put(conn)
+            self.idle.put((time.monotonic(), conn))
 
     def close(self):
         self.closed = True
         while True:
             try:
-                self.discard(self.idle.get_nowait())
+                _, conn = self.idle.get_nowait()
+                self.discard(conn)
             except queue.Empty:
                 break
 
@@ -270,17 +279,24 @@ class Database:
     @contextmanager
     def postgres_connection(self):
         pool = self.pool()
-        raw = pool.acquire()
+        # Retry only setup on a stale pooled socket, before the caller can run
+        # any business statement. Never replay purchases or other writes.
+        for attempt in range(2):
+            raw = pool.acquire()
+            conn = Connection(raw, True)
+            try:
+                conn.execute(
+                    "BEGIN; SET LOCAL search_path TO skinsavo, pg_catalog; "
+                    "SET LOCAL TIME ZONE 'UTC'; SET LOCAL extra_float_digits=3; "
+                    "SET LOCAL statement_timeout='60s'; SET LOCAL lock_timeout='10s'"
+                )
+                break
+            except (postgres.Error, OSError, TimeoutError):
+                pool.release(raw, broken=True)
+                if attempt:
+                    raise StorageUnavailable("PostgreSQL transaction is unavailable") from None
         broken = False
         try:
-            conn = Connection(raw, True)
-            conn.execute("SET LOCAL search_path TO skinsavo, pg_catalog")
-            conn.execute("SET LOCAL TIME ZONE 'UTC'")
-            # Poolers may default to rounded float text. Preserve every bit of
-            # queue/session timestamps for both migration hashes and live reads.
-            conn.execute("SET LOCAL extra_float_digits=3")
-            conn.execute("SET LOCAL statement_timeout='60s'")
-            conn.execute("SET LOCAL lock_timeout='10s'")
             yield conn
             raw.commit()
         except (postgres.Error, OSError, TimeoutError):
