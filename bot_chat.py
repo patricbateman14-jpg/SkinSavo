@@ -21,7 +21,6 @@ from aiogram.types import (
 from aiogram.types import (
     LinkPreviewOptions,
     Message,
-    ReplyKeyboardRemove,
     WebAppInfo,
 )
 
@@ -230,7 +229,6 @@ class BotChat:
             return
         # The update transport already authenticated this name. Show the reply
         # before profile/session writes; the global Web App menu is set at startup.
-        await message.answer("🎮 SkinSavo", reply_markup=ReplyKeyboardRemove())
         name = html.escape(message.from_user.first_name or "do‘stim")
         await self.show(
             message,
@@ -247,29 +245,30 @@ class BotChat:
     async def menu(self, message: Message, bot: Bot = None):
         if not self.private(message):
             return
-        await self.user(message.from_user)
-        await asyncio.to_thread(self.clear_mode, message.from_user.id)
-        await self.show(
-            message,
-            "🎮 <b>SkinSavo</b>\nIlovani oching.",
-            self.menu_keyboard(message.from_user.id),
-        )
+        await self.view(message, message.from_user, "menu")
 
-    async def view(self, target, user, section, page=0, *, profile=None):
-        if profile is None:
-            profile = await self.user(user)
+    async def view(self, target, user, section, page=0, *, profile=None, mode=None):
         uid = str(user.id)
-        if section not in ("support", "search"):
-            mode = await asyncio.to_thread(self.mode, uid)
-            if mode.get("mode") in ("support", "search"):
-                await asyncio.to_thread(self.clear_mode, uid)
         if section == "menu":
-            await asyncio.to_thread(self.clear_mode, uid)
-            return await self.show(
+            # This static reply needs no database result. Keep the persistence
+            # barrier after sending so the next update sees the cleared state.
+            await self.show(
                 target,
                 "🎮 <b>SkinSavo</b>\nIlovani oching.",
                 self.menu_keyboard(uid),
             )
+            writes = [asyncio.to_thread(self.clear_mode, uid)]
+            if profile is None:
+                writes.append(self.user(user))
+            await asyncio.gather(*writes)
+            return
+        if profile is None:
+            profile = await self.user(user)
+        if section not in ("support", "search"):
+            if mode is None:
+                mode = await asyncio.to_thread(self.mode, uid)
+            if mode.get("mode") in ("support", "search"):
+                await asyncio.to_thread(self.clear_mode, uid)
         if section == "profile":
             name = html.escape(
                 " ".join(filter(None, [profile["first_name"], profile["last_name"]]))
@@ -546,14 +545,13 @@ class BotChat:
             await callback.answer()
         except TelegramBadRequest:
             pass  # Expired spinner acknowledgements must not block the actual action.
-        profile = await self.user(callback.from_user)
         action = callback.data[3:]
+        if action in ("menu", "cancel"):
+            return await self.view(callback, callback.from_user, "menu")
+        profile = await self.user(callback.from_user)
         if action == "all":
             await asyncio.to_thread(self.set_mode, callback.from_user.id, "catalog", "")
             return await self.view(callback, callback.from_user, "catalog", profile=profile)
-        if action == "cancel":
-            await asyncio.to_thread(self.clear_mode, callback.from_user.id)
-            return await self.view(callback, callback.from_user, "menu", profile=profile)
         if action.startswith("faq:"):
             title, body = FAQ.get(action[4:], FAQ["login"])
             return await self.show(
@@ -572,7 +570,6 @@ class BotChat:
                 return await self.ticket(callback, callback.from_user.id, number)
             return await self.view(callback, callback.from_user, section, number, profile=profile)
         if action in (
-            "menu",
             "profile",
             "balance",
             "help",
@@ -738,7 +735,7 @@ class BotChat:
     async def text(self, message: Message):
         if not self.private(message):
             return
-        await self.user(message.from_user)
+        profile = await self.user(message.from_user)
         text = (message.text or "").strip()
         if not text:
             return await self.show(
@@ -780,7 +777,7 @@ class BotChat:
         }
         mode = await asyncio.to_thread(self.mode, message.from_user.id)
         if normalized in ("bekor", "menyu", "bosh sahifa"):
-            return await self.view(message, message.from_user, "menu")
+            return await self.view(message, message.from_user, "menu", profile=profile, mode=mode)
         if mode.get("mode") == "support":
             if not 5 <= len(text) <= 1500:
                 return await self.show(
@@ -793,7 +790,7 @@ class BotChat:
             )
             return await self.ticket_receipt(message, ticket_id)
         if normalized in intents:
-            return await self.view(message, message.from_user, intents[normalized])
+            return await self.view(message, message.from_user, intents[normalized], profile=profile, mode=mode)
         if any(
             word in normalized
             for word in ("login", "kirish", "ochilmay", "telegramda oching")

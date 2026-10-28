@@ -1,5 +1,6 @@
 import asyncio
 import tempfile
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -158,7 +159,7 @@ class BotChatTests(unittest.IsolatedAsyncioTestCase):
         with main.db() as conn:
             conn.execute("UPDATE users SET balance=42 WHERE telegram_id='101'")
         await self.message("/start")
-        self.assertTrue(self.messages()[0].reply_markup.remove_keyboard)
+        self.assertEqual(len(self.messages()), 1)
         self.assertIn("Aziz &lt;b&gt;", self.last().text)
         self.assertIn("Demo", self.last().text)
         self.assertEqual(len(self.last().reply_markup.inline_keyboard), 1)
@@ -205,6 +206,65 @@ class BotChatTests(unittest.IsolatedAsyncioTestCase):
                 await task
         with main.db() as conn:
             self.assertIsNotNone(conn.execute("SELECT 1 FROM users WHERE telegram_id='101'").fetchone())
+
+    async def test_menu_replies_before_writes_but_waits_for_both_before_returning(self):
+        for callback in (False, True):
+            with self.subTest(callback=callback):
+                release_profile = asyncio.Event()
+                profile_finished = asyncio.Event()
+                release_clear = threading.Event()
+                menu_sent = asyncio.Event()
+                original_user, original_clear = self.chat.user, self.chat.clear_mode
+                self.chat.set_mode(101, "support")
+
+                async def delayed_profile(user):
+                    await release_profile.wait()
+                    result = await original_user(user)
+                    profile_finished.set()
+                    return result
+
+                def delayed_clear(uid):
+                    if not release_clear.wait(timeout=5):
+                        raise TimeoutError("Test did not release session write")
+                    return original_clear(uid)
+
+                def observe(method):
+                    if method.__api_method__ in ("sendMessage", "editMessageText"):
+                        menu_sent.set()
+
+                self.session.failure = observe
+                with patch.object(self.chat, "user", side_effect=delayed_profile), patch.object(
+                    self.chat, "clear_mode", side_effect=delayed_clear
+                ):
+                    task = asyncio.create_task(
+                        self.callback("ss:menu") if callback else self.message("/menu")
+                    )
+                    try:
+                        await asyncio.wait_for(menu_sent.wait(), timeout=2)
+                        self.assertTrue(self.last().reply_markup.inline_keyboard[0][0].web_app)
+                        self.assertFalse(task.done())
+                        release_profile.set()
+                        await asyncio.wait_for(profile_finished.wait(), timeout=2)
+                        self.assertFalse(task.done(), "Session persistence must still hold chat order")
+                    finally:
+                        release_profile.set()
+                        release_clear.set()
+                        await task
+                self.assertEqual(self.chat.mode(101), {})
+
+    async def test_text_reuses_profile_and_state_without_changing_support_greeting(self):
+        with patch.object(self.chat, "user", wraps=self.chat.user) as sync, patch.object(
+            self.chat, "mode", wraps=self.chat.mode
+        ) as mode:
+            await self.message("salom")
+            sync.assert_awaited_once()
+            mode.assert_called_once()
+            self.assertIn("Ilovani oching", self.last().text)
+        await self.message("/support")
+        await self.message("salom")
+        self.assertIn("Murojaat #1 saqlandi", self.last().text)
+        with main.db() as conn:
+            self.assertEqual(conn.execute("SELECT body FROM support_tickets").fetchone()[0], "salom")
 
     async def test_private_ownership_for_balance_inventory_history(self):
         self.seed_skins()

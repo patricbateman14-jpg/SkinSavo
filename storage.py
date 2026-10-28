@@ -25,6 +25,14 @@ else:
 
 POSTGRES_DRIVER = "psycopg" if native_postgres else "pg8000"
 POSTGRES_ERRORS = (postgres.Error,) + ((native_postgres.Error,) if native_postgres else ())
+POSTGRES_TRANSACTION_SETUP = (
+    "BEGIN",
+    "SET LOCAL search_path TO skinsavo, pg_catalog",
+    "SET LOCAL TIME ZONE 'UTC'",
+    "SET LOCAL extra_float_digits=3",
+    "SET LOCAL statement_timeout='60s'",
+    "SET LOCAL lock_timeout='10s'",
+)
 
 # pg8000 supports DB-API qmark bindings natively. This project is its only caller.
 postgres.paramstyle = "qmark"
@@ -317,11 +325,7 @@ class Database:
             raw = pool.acquire()
             conn = Connection(raw, True)
             try:
-                conn.execute(
-                    "BEGIN; SET LOCAL search_path TO skinsavo, pg_catalog; "
-                    "SET LOCAL TIME ZONE 'UTC'; SET LOCAL extra_float_digits=3; "
-                    "SET LOCAL statement_timeout='60s'; SET LOCAL lock_timeout='10s'"
-                )
+                conn.execute("; ".join(POSTGRES_TRANSACTION_SETUP))
                 break
             except POSTGRES_ERRORS + (OSError, TimeoutError):
                 pool.release(raw, broken=True)
@@ -349,6 +353,54 @@ class Database:
             if self.is_postgres
             else sqlite_connection(self.path())
         )
+
+    def execute_one(self, query, values=()):
+        """Commit one statement and materialize its rows before returning.
+
+        Inbox operations do not depend on intermediate results. On the native
+        PostgreSQL driver, send their transaction setup, statement and COMMIT
+        in one pipeline instead of paying three remote round trips. Ordinary
+        multi-statement business transactions keep using connection().
+        """
+        if not self.is_postgres or not native_postgres:
+            with self.connection() as conn:
+                result = conn.execute(query, values)
+                try:
+                    return result.fetchall() if result.cursor.description else []
+                finally:
+                    result.cursor.close()
+
+        pool = self.pool()
+        raw = pool.acquire()
+        broken = False
+        try:
+            with raw.cursor() as setup, raw.cursor() as statement, raw.cursor() as commit:
+                with raw.pipeline():
+                    # Pipeline mode requires one SQL statement per execute.
+                    for command in POSTGRES_TRANSACTION_SETUP:
+                        setup.execute(command)
+                    if values:
+                        bound_query, bound_values = postgres.convert_paramstyle(
+                            "qmark", query, values
+                        )
+                        statement.execute(bound_query, bound_values)
+                    else:
+                        statement.execute(query)
+                    commit.execute("COMMIT")
+                # Exiting the pipeline confirms COMMIT before exposing rows.
+                return Result(statement, True).fetchall() if statement.description else []
+        except POSTGRES_ERRORS + (OSError, TimeoutError):
+            # The server may have committed before a connection failure. Never
+            # replay here; the inbox's durable update ID handles redelivery.
+            broken = True
+            raise StorageUnavailable("PostgreSQL statement is unavailable") from None
+        except BaseException:
+            broken = True
+            raise
+        finally:
+            # Closing an unsuccessful connection also rolls back an aborted or
+            # unfinished transaction, so it cannot contaminate the next borrow.
+            pool.release(raw, broken)
 
     def close(self):
         with self._lock:

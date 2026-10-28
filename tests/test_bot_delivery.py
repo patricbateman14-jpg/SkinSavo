@@ -332,16 +332,21 @@ class BotDeliveryTests(unittest.IsolatedAsyncioTestCase):
             )
         )
         dispatcher.include_router(chat.router)
-        self.delivery.bot = bot
-        self.delivery.dispatcher = dispatcher
+        self.delivery = TelegramDelivery(main.db, dispatcher, bot, execute_one=main.database.execute_one)
+        main.app.state.telegram_delivery = self.delivery
         self.assertEqual(self.post().status_code, 200)
         self.assertTrue(await self.delivery.process_once())
         replies = [
             call for call in session.calls if call.__api_method__ == "sendMessage"
         ]
-        self.assertEqual(len(replies), 2)
+        self.assertEqual(len(replies), 1)
         self.assertIn("Aziz", replies[-1].text)
         self.assertTrue(replies[-1].reply_markup.inline_keyboard[0][0].web_app)
+        timing = self.delivery.last_reply_timing
+        self.assertGreaterEqual(timing["webhook_to_reply_ms"], timing["handler_ms"])
+        self.assertGreaterEqual(timing["handler_ms"], timing["telegram_api_ms"])
+        self.assertEqual(set(timing), {"webhook_to_reply_ms", "handler_ms", "telegram_api_ms", "enqueue_ms"})
+        self.assertFalse(self.delivery.received)
         with main.db() as conn:
             user = dict(
                 conn.execute("SELECT * FROM users WHERE telegram_id='101'").fetchone()

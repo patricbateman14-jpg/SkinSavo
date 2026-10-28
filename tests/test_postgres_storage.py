@@ -330,7 +330,7 @@ class PostgresStorageTests(unittest.TestCase):
 
     def test_queue_claims_are_locked_and_callbacks_use_portable_queries(self):
         self.migrate()
-        delivery = TelegramDelivery(main.db, None, None)
+        delivery = TelegramDelivery(main.db, None, None, execute_one=main.database.execute_one, postgres=True)
         self.assertFalse(delivery.enqueue({"update_id": 101}))
         delivery.enqueue({"update_id": 102, "message": {"from": {"id": 302}}})
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -371,7 +371,7 @@ class PostgresStorageTests(unittest.TestCase):
 
     def test_atomic_queue_claim_serializes_a_chat_and_recovers_exhausted_head(self):
         self.migrate()
-        delivery=TelegramDelivery(main.db,None,None)
+        delivery=TelegramDelivery(main.db,None,None,execute_one=main.database.execute_one,postgres=True)
         delivery.enqueue({'update_id':102,'message':{'from':{'id':301}}})
         with ThreadPoolExecutor(max_workers=2) as executor:
             rows=list(executor.map(lambda _:delivery.claim(),range(2)))

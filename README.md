@@ -54,8 +54,10 @@ It loads asynchronously: a slow SDK download cannot block verification or the
 page, and native controls are attached when it arrives.
 Plain Telegram browser tabs and old reply-keyboard buttons do not provide Mini
 App credentials: use the bot's SkinSavo menu button or a configured Main Mini App.
-The bot's /start handler removes old reply keyboards and sends inline Mini App
-buttons before synchronizing the profile and clearing the previous conversation.
+The bot's /start handler sends one welcome with its inline Mini App button
+before synchronizing the profile and clearing the previous conversation.
+Static /menu replies also precede profile/session writes; those writes still
+finish before processing the next message from the same chat.
 The default menu is configured once at startup instead of before every reply.
 python main.py remains a local-only
 polling alternative and refuses to start when a webhook is already active.
@@ -85,13 +87,23 @@ from BOT_TOKEN unless TELEGRAM_WEBHOOK_SECRET is explicitly configured. It is
 never returned to clients. Updates commit to the configured database inbox before HTTP 200;
 duplicate update IDs are ignored. Up to four independent chats run concurrently,
 while the inbox preserves each user's update order. Intake and PostgreSQL claims
-use one database statement on the normal path. The worker
+use one database statement on the normal path. The native PostgreSQL driver
+batches transaction setup, that statement and COMMIT in a single network round
+trip, and only acknowledges the webhook after COMMIT succeeds. It never blindly
+replays an uncertain write. The worker
 retries temporary failures up to five attempts, respects Telegram rate limits
 and recovers interrupted processing. Successful payloads are cleared, leaving
 deduplication metadata. Failed inbox rows retain the payload for operator review.
 An abrupt crash between sending a Telegram message and saving its delivery
 result can repeat that outgoing reply; Telegram does not provide a send-message
 idempotency key. Support-ticket creation itself is deduplicated.
+
+The startup Telegram client is reused for delivery. Duration-only first-reply
+metrics appear in server logs and `telegram_last_reply_timing` in `/api/health`:
+webhook-to-reply, handler, Telegram request and inbox enqueue milliseconds.
+These measure Telegram API confirmation, not when a user's device displays it;
+recovered updates without a local arrival timestamp omit webhook-to-reply time.
+No user IDs, messages, URLs or credentials are included.
 
 Bot protocol references: [Telegram webhooks](https://core.telegram.org/bots/api#setwebhook)
 and [aiogram update dispatch](https://docs.aiogram.dev/en/latest/dispatcher/webhook.html).
