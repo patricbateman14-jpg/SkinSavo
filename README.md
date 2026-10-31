@@ -116,6 +116,35 @@ balances and database records are preserved. Startup never deletes demo rows.
 
 ## Catalog and artwork
 
+Catalog cards use the administrator's rarity to set their colored background
+and accent (Covert red, Classified pink, Restricted purple, and the remaining
+grades' own colors). Transparent weapon art uses `object-fit: contain`; cards
+show stock, weapon/finish, wear abbreviation and prices in Uzbek so‘m (UZS). The
+whole card opens its detail page, including keyboard navigation.
+
+`/admin` includes PNG file selection/drop, authenticated uploads, a live card
+preview, rarity/wear choices, automatic display names, listing search/pagination,
+editing, archive and restore. Failed uploads preserve the form. Images are
+decoded, checked as nonanimated PNG (8 MB input, 4096 px per side, 8 MP total),
+re-encoded without metadata and named by their content hash. Transparency is
+preserved. Public immutable image URLs contain no user or credential data.
+
+Image files persist in `skin-images/` beside `DATABASE_PATH` (production:
+`/data/skin-images` on Railway's existing persistent volume); `SKIN_IMAGE_DIR`
+can override this path. Catalog records remain in Supabase. Keep this directory
+with volume backups. HTTPS image links also remain supported. Editing catalog
+prices/names does not rewrite the purchase prices/names already in inventory;
+archiving hides a listing without deleting owned items.
+
+The website, chat bot, catalog, inventory, balance and history all use UZS.
+Admin prices are entered directly in so‘m. Demo top-ups default to 50,000 so‘m
+and accept up to 10,000,000 so‘m per request; no exchange-rate service is used.
+The owner-requested fresh start is a separate one-time operator action in
+`scripts/reset_demo_to_uzs.sql`, never part of app startup. It verifies the
+previously inspected demo records, saves a private owner-only recovery copy,
+clears that demo catalog/inventory/history and balances, and retains Telegram
+profiles. Its completion receipt prevents a second run from clearing new data.
+
 Each main feature has a shareable URL: `/` (home), `/skins` (catalog),
 `/skins/123` (skin detail), `/profile`, `/inventory`, `/balance`,
 `/balance/topup`, `/history`, `/faq` and `/admin`. Account actions open full

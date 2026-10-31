@@ -10,3 +10,4 @@ test-results/
 *.pre-supabase-*.db
 *.migration-tmp
 supabase/.temp/
+skin-images/

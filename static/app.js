@@ -13,11 +13,9 @@
           "'": "&#39;",
         })[c],
     );
-  const money = (n) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(Number(n));
+  const money = (n) => new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 0, maximumFractionDigits: 2,
+  }).format(Number(n)).replace(/,/g, " ").replace(".", ",") + " so‘m";
   const paths = {
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/>',
     user: '<circle cx="12" cy="8" r="3.5"/><path d="M5 21c0-8 14-8 14 0"/>',
@@ -157,13 +155,27 @@
     }
   }
   function imageUrl(item) {
-    const local = state.manifest[item.name];
-    if (local) return local;
     const value = String(item.image || "");
-    return /^(https?:\/\/|\/static\/)/.test(value) &&
+    return /^(https?:\/\/|\/static\/|\/media\/skins\/)/.test(value) &&
       !value.includes("placehold.co")
       ? value
-      : "/static/assets/art-unavailable.svg";
+      : state.manifest[item.name] || "/static/assets/art-unavailable.svg";
+  }
+  const rarityKeys = {"Consumer Grade":"consumer", "Industrial Grade":"industrial", "Mil-Spec":"milspec", "Restricted":"restricted", "Classified":"classified", "Covert":"covert", "Exceedingly Rare":"rare", "Contraband":"contraband"};
+  const wearCodes = {"Factory New":"FN", "Minimal Wear":"MW", "Field-Tested":"FT", "Well-Worn":"WW", "Battle-Scarred":"BS"};
+  function rarityKey(rarity) {
+    const name = rarities.find(value => value.toLowerCase() === String(rarity).toLowerCase());
+    return rarityKeys[name] || (String(rarity).toLowerCase() === "classifid" ? "classified" : "consumer");
+  }
+  function skinCard(item, preview = false) {
+    const tag = preview ? "article" : "a";
+    const source = preview && String(item.image).startsWith("blob:") ? item.image : imageUrl(item);
+    const finish = item.skin || String(item.name || "").split(" | ").pop();
+    const wear = wearCodes[item.condition] || String(item.condition || "").toUpperCase();
+    const glyph = rarityKey(item.rarity) === "covert"
+      ? '<path d="M13 2c1 5-4 5-2 9 2-1 3-3 3-5 6 5 7 10 4 14-4 4-12 2-12-4 0-4 3-5 4-8-1 5 1 5 1 5 0-4 3-6 2-11Z"/>'
+      : '<path d="m12 3 8 9-8 9-8-9 8-9Zm0 5-4 4 4 4 4-4-4-4Z"/>';
+    return `<${tag} class="skin-card market-card rarity-${rarityKey(item.rarity)}${Number(item.stock) < 1 ? " sold-out" : ""}" ${preview ? "" : `href="/skins/${item.id}" data-route aria-label="${esc(item.name)} · ${esc(item.condition)} · ${esc(money(item.price))}"`}><div class="card-top"><span class="card-stock">${Number(item.stock) > 0 ? `Jami: ${Number(item.stock).toLocaleString("en-US")} dona` : "Tugagan"}</span><span class="card-rarity" title="${esc(item.rarity)}" aria-label="${esc(item.rarity)}"><svg viewBox="0 0 24 24" aria-hidden="true">${glyph}</svg></span></div><div class="skin-image"><img src="${esc(source)}" alt="${esc(item.name || finish)}" loading="${preview ? "eager" : "lazy"}" width="256" height="112"></div><div class="card-meta"><span>${esc(item.weapon)}</span><abbr title="${esc(item.condition)}">${esc(wear)}</abbr></div><div class="card-title-row"><h3 title="${esc(finish)}">${esc(finish)}</h3><strong class="card-price">${money(item.price)}</strong></div></${tag}>`;
   }
   function imageFallbacks(root = document) {
     root.querySelectorAll("img").forEach((img) => {
@@ -234,10 +246,7 @@
         .join(" · ");
       $("skinGrid").innerHTML = state.items.length
         ? state.items
-            .map(
-              (s) =>
-                `<article class="skin-card"><div class="skin-image"><span class="skin-badge">${esc(s.rarity)}</span><span class="stock-badge">${s.stock > 0 ? esc(s.stock) + " dona" : "Tugagan"}</span><img src="${esc(imageUrl(s))}" alt="${esc(s.name)}" loading="lazy" width="240" height="160"></div><div class="skin-info"><h3>${esc(s.name)}</h3><p class="skin-meta">${esc(s.condition)}</p><div class="skin-bottom"><strong class="price">${money(s.price)}</strong><a class="view-btn" href="/skins/${s.id}" data-route aria-label="${esc(s.name)} — ko‘rish">Ko‘rish ↗</a></div></div></article>`,
-            )
+            .map(s => skinCard(s))
             .join("")
         : '<div class="empty"><strong>Skinlar topilmadi</strong>Filtrlarni o‘zgartiring yoki keyinroq qayting.<br><button class="secondary" data-action="reset">Filtrlarni tozalash</button></div>';
       $("loadMore").hidden =
@@ -329,7 +338,7 @@
   function topup() {
     renderPage(
       "Balans to‘ldirish",
-      '<p>Faqat sinov mablag‘i. Haqiqiy pul olinmaydi.</p><form id="topupForm"><label class="field-label" for="amount">Miqdor (USD)</label><input class="modal-input" id="amount" type="number" min="0.01" max="10000" step="0.01" value="25" required><button class="full-btn" type="submit">Demo balans qo‘shish</button></form>',
+      '<p>Faqat sinov mablag‘i. Haqiqiy pul olinmaydi.</p><form id="topupForm"><label class="field-label" for="amount">Miqdor (so‘m)</label><input class="modal-input" id="amount" type="number" min="1" max="10000000" step="1" value="50000" required><button class="full-btn" type="submit">Demo balans qo‘shish</button></form>',
       "/balance",
       "DEMO HAMYON",
     );
@@ -407,30 +416,7 @@
       );
       return;
     }
-    const fields = [
-      ["name", "Skin nomi", "text"],
-      ["weapon", "Qurol", "text"],
-      ["skin", "Finish nomi", "text"],
-      ["rarity", "Rarity", "text"],
-      ["condition", "Holati", "text"],
-      ["price", "Narx (USD)", "number"],
-      ["stock", "Soni", "number"],
-      ["image", "HTTPS rasm URL", "url"],
-      ["description", "Tavsif", "text"],
-    ];
-    renderPage(
-      "Yangi skin joylash",
-      '<form id="adminForm">' +
-        fields
-          .map(
-            ([name, label, type]) =>
-              `<label class="field-label" for="admin-${name}">${label}</label><input class="modal-input" id="admin-${name}" name="${name}" type="${type}" ${type === "number" ? `min="0" step="${name === "stock" ? "1" : "0.01"}"` : ""} ${name === "description" ? "" : "required"}>`,
-          )
-          .join("") +
-        '<button class="full-btn" type="submit">Skinni joylash</button></form>',
-      "/profile",
-      "ADMINISTRATOR",
-    );
+    window.SkinSavoAdmin.render({api, renderPage, card:skinCard, esc, rarities, conditions, toast, money});
   }
   function normalizedPath() {
     return location.pathname.replace(/\/+$/, "") || "/";
@@ -510,6 +496,7 @@
     renderRoute();
   }
   async function renderRoute({ focus = true } = {}) {
+    window.SkinSavoAdmin?.close();
     if (!state.session?.authenticated) return;
     clearTimeout(searchTimer);
     const version = ++routeVersion;
@@ -694,33 +681,21 @@
     }
   });
   document.addEventListener("submit", async (event) => {
-    if (!["topupForm", "adminForm"].includes(event.target.id)) return;
+    if (event.target.id !== "topupForm") return;
     event.preventDefault();
     const button = event.target.querySelector("button[type=submit]");
     button.disabled = true;
     try {
-      if (event.target.id === "topupForm") {
-        await api("/api/demo/topup", {
-          method: "POST",
-          body: JSON.stringify({
-            telegram_id: state.session.telegram_id,
-            amount: Number($("amount").value),
-          }),
-        });
-        await loadUser();
-        toast("Demo balans yangilandi.");
-        navigate("/balance");
-      } else {
-        const payload = Object.fromEntries(new FormData(event.target));
-        payload.price = Number(payload.price);
-        payload.stock = Number(payload.stock);
-        const result = await api("/api/admin/skins", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        toast("Skin saqlandi");
-        navigate("/skins/" + result.item.id);
-      }
+      await api("/api/demo/topup", {
+        method: "POST",
+        body: JSON.stringify({
+          telegram_id: state.session.telegram_id,
+          amount: Number($("amount").value),
+        }),
+      });
+      await loadUser();
+      toast("Demo balans yangilandi.");
+      navigate("/balance");
     } catch (e) {
       toast(e.message);
       button.disabled = false;

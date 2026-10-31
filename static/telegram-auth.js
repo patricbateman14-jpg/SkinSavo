@@ -61,6 +61,8 @@
         const error = new Error(
           typeof data?.detail === "string"
             ? data.detail
+            : Array.isArray(data?.detail)
+              ? data.detail.map(item => item.msg.replace(/^Value error, /, "")).join(". ")
             : "Ulanish vaqtincha uzildi. Qayta urinib ko‘ring.",
         );
         error.status = response.ok ? 502 : response.status;

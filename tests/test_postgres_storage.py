@@ -458,6 +458,14 @@ class PostgresStorageTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertGreater(response.json()["item"]["id"], 1000)
+        item = response.json()["item"]
+        updated = self.client.put(f"/api/admin/skins/{item['id']}", headers=self.headers(),
+                                  json={**item, "rarity": "Classified", "price": 24.75, "active": False})
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.json()["item"]["price"], 24.75)
+        listed = self.client.get("/api/admin/skins?q=AWP", headers=self.headers()).json()
+        self.assertEqual(listed["items"][0]["rarity"], "Classified")
+        self.assertEqual(listed["items"][0]["active"], 0)
 
 
 if __name__ == "__main__":

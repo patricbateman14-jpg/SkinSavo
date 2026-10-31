@@ -174,7 +174,7 @@ class BotChatTests(unittest.IsolatedAsyncioTestCase):
             )
         )
         await self.callback("ss:profile")
-        self.assertIn("$42.00", self.last().text)
+        self.assertIn("42 so‘m", self.last().text)
         self.assertIn(
             "/profile?", self.last().reply_markup.inline_keyboard[0][0].web_app.url
         )
@@ -283,8 +283,8 @@ class BotChatTests(unittest.IsolatedAsyncioTestCase):
                     (str(uid), 25, "demo_topup", name),
                 )
         await self.message("/balance")
-        self.assertIn("$12.00", self.last().text)
-        self.assertNotIn("9,999", self.last().text)
+        self.assertIn("12 so‘m", self.last().text)
+        self.assertNotIn("9 999", self.last().text)
         for command in ("/inventory", "/history"):
             await self.message(command)
             self.assertIn("My skin", self.last().text)

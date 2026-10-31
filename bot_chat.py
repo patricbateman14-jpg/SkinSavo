@@ -25,6 +25,13 @@ from aiogram.types import (
 )
 
 
+def money(value, signed=False):
+    number = format(value, "+,.2f" if signed else ",.2f")
+    whole, fraction = number.split(".")
+    fraction = fraction.rstrip("0")
+    return whole.replace(",", " ") + (("," + fraction) if fraction else "") + " so‘m"
+
+
 def init_chat_tables(conn):
     conn.execute(
         """CREATE TABLE IF NOT EXISTS bot_sessions (
@@ -277,7 +284,7 @@ class BotChat:
             handle = (
                 "\n@" + html.escape(profile["username"]) if profile["username"] else ""
             )
-            text = f"👤 <b>{name}</b>{handle}\nID: <code>{uid}</code>\nDemo balans: <b>${profile['balance']:,.2f}</b>"
+            text = f"👤 <b>{name}</b>{handle}\nID: <code>{uid}</code>\nDemo balans: <b>{money(profile['balance'])}</b>"
             rows = [
                 [self.web("👤 Profilni ochish", "/profile")],
                 [
@@ -286,7 +293,7 @@ class BotChat:
                 ],
             ]
         elif section in ("balance", "topup"):
-            text = f"💰 <b>Demo balans: ${profile['balance']:,.2f}</b>\n\nSinov mablag‘i. Haqiqiy pul olinmaydi."
+            text = f"💰 <b>Demo balans: {money(profile['balance'])}</b>\n\nSinov mablag‘i. Haqiqiy pul olinmaydi."
             rows = [
                 [self.web("➕ Balans to‘ldirish", "/balance/topup")],
                 [self.cb("🔄 Yangilash", "balance"), self.cb("📜 Tarix", "history:0")],
@@ -426,7 +433,7 @@ class BotChat:
             )
         for item in rows:
             if section in ("catalog", "inventory"):
-                text += f"\n\n<b>{html.escape(item['name'])}</b>\n${item['price']:,.2f}"
+                text += f"\n\n<b>{html.escape(item['name'])}</b>\n{money(item['price'])}"
                 if section == "catalog":
                     text += (
                         f" · {html.escape(item['condition'])} · {item['stock']} dona"
@@ -439,7 +446,7 @@ class BotChat:
                     "demo_sale": "Demo sotuv",
                 }
                 label = names.get(item["event_type"], "Demo amal")
-                text += f"\n\n{label} · <b>{item['amount']:+,.2f} USD</b>\n{html.escape(item['note'][:100])}\n<i>{item['created_at']}</i>"
+                text += f"\n\n{label} · <b>{money(item['amount'], signed=True)}</b>\n{html.escape(item['note'][:100])}\n<i>{item['created_at']}</i>"
             else:
                 status = "Javob berilgan" if item["status"] == "answered" else "Ochiq"
                 text += f"\n\n<b>#{item['id']}</b> · {status}\n{html.escape(item['body'][:100])}"
@@ -491,7 +498,7 @@ class BotChat:
                 "Bu skin hozir katalogda yo‘q.",
                 self.back_keyboard([self.cb("🛍 Katalog", "catalog:0")]),
             )
-        text = f"🛍 <b>{html.escape(item['name'])}</b>\n{html.escape(item['condition'])} · {html.escape(item['rarity'])}\n\nDemo narx: <b>${item['price']:,.2f}</b>\nQoldiq: {item['stock']} dona"
+        text = f"🛍 <b>{html.escape(item['name'])}</b>\n{html.escape(item['condition'])} · {html.escape(item['rarity'])}\n\nDemo narx: <b>{money(item['price'])}</b>\nQoldiq: {item['stock']} dona"
         if item["description"]:
             text += "\n\n" + html.escape(item["description"][:700])
         text += "\n\n<i>Xarid ilovada tasdiqlanadi. Haqiqiy pul olinmaydi.</i>"

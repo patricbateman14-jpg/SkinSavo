@@ -26,6 +26,7 @@ from bot_chat import BotChat, BotServices, COMMANDS, init_chat_tables
 from bot_delivery import TelegramDelivery, init_delivery_tables, webhook_secret
 from storage import Database, StorageUnavailable, StorageFrozen, prepare_sqlite_metadata, POSTGRES_DRIVER
 from storage_migration import migrate_to_postgres
+from catalog_admin import SkinCreate, MAX_UPLOAD, MEDIA_NAME, image_directory, save_png
 
 load_dotenv()
 
@@ -289,19 +290,7 @@ async def telegram_only_api(request: Request, call_next):
 
 class DemoTopUp(BaseModel):
     telegram_id: str = Field(min_length=1, max_length=80)
-    amount: float = Field(gt=0, le=10000, allow_inf_nan=False)
-
-
-class SkinCreate(BaseModel):
-    name: str = Field(min_length=2, max_length=160)
-    weapon: str = Field(min_length=1, max_length=80)
-    skin: str = Field(min_length=1, max_length=100)
-    rarity: str = Field(min_length=1, max_length=50)
-    condition: str = Field(min_length=1, max_length=50)
-    price: float = Field(ge=0, le=100000000, allow_inf_nan=False)
-    stock: int = Field(ge=0, le=1000000)
-    image: str = Field(min_length=8, max_length=2000)
-    description: str = Field(default="", max_length=2000)
+    amount: float = Field(gt=0, le=10000000, allow_inf_nan=False)
 
 
 @app.get("/", include_in_schema=False)
@@ -373,7 +362,7 @@ def require_admin(init_data: str) -> dict[str, Any]:
 def session_info(request: Request):
     user = request.state.telegram_user  # Already verified once by the API middleware.
     profile = sync_telegram_profile(user)
-    return {"authenticated": True, "telegram_id": str(user["id"]), "username": profile["username"], "user": profile,
+    return {"authenticated": True, "currency": "UZS", "telegram_id": str(user["id"]), "username": profile["username"], "user": profile,
             "is_admin": bool(ADMIN_TELEGRAM_ID and str(user["id"]) == ADMIN_TELEGRAM_ID)}
 
 
@@ -383,7 +372,7 @@ def app_config():
     username = username if re.fullmatch(r"[A-Za-z0-9_]{5,32}", username or "") else ""
     bot_url = f"https://t.me/{username}" if username else None
     suffix = "?startapp" if getattr(app.state, "telegram_main_app", False) else "?start=app"
-    return {"telegram_only": True, "bot_url": bot_url,
+    return {"telegram_only": True, "currency": "UZS", "bot_url": bot_url,
             "mini_app_url": bot_url + suffix if bot_url else None,
             "main_app_enabled": getattr(app.state, "telegram_main_app", False)}
 
@@ -392,14 +381,69 @@ def app_config():
 def admin_create_skin(payload: SkinCreate, x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
     require_admin(x_telegram_init_data)
     image = payload.image.strip()
-    if not image.startswith(("https://", "http://")):
-        raise HTTPException(status_code=422, detail="Rasm havolasi http:// yoki https:// bilan boshlanishi kerak")
+    validate_local_image(image)
     with db() as conn:
         row = conn.execute(
             "INSERT INTO skins (name, weapon, skin, rarity, condition, price, stock, image, description, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1) RETURNING *",
             (payload.name.strip(), payload.weapon.strip(), payload.skin.strip(), payload.rarity.strip(), payload.condition.strip(), Decimal(str(payload.price)), payload.stock, image, payload.description.strip()),
         ).fetchone()
     return {"item": dict(row), "ok": True}
+
+
+def validate_local_image(image):
+    if image.startswith("/media/skins/") and not (image_directory(DB_PATH) / image.rsplit("/", 1)[-1]).is_file():
+        raise HTTPException(422, "Rasm topilmadi. PNG faylni qayta yuklang")
+
+
+@app.post("/api/admin/images")
+async def admin_upload_image(request: Request, x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    require_admin(x_telegram_init_data)
+    if request.headers.get("content-type", "").split(";")[0].strip().lower() != "image/png":
+        raise HTTPException(415, "Faqat PNG rasm yuklash mumkin")
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > MAX_UPLOAD:
+            raise HTTPException(413, "PNG hajmi 8 MB dan oshmasin")
+    return await asyncio.to_thread(save_png, bytes(data), image_directory(DB_PATH))
+
+
+@app.get("/media/skins/{filename}", include_in_schema=False)
+def skin_image(filename: str):
+    if not MEDIA_NAME.fullmatch(filename):
+        raise HTTPException(404, "Rasm topilmadi")
+    directory = image_directory(DB_PATH).resolve()
+    path = (directory / filename).resolve()
+    if path.parent != directory or not path.is_file():
+        raise HTTPException(404, "Rasm topilmadi")
+    return FileResponse(path, media_type="image/png", headers={
+        "Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff"})
+
+
+@app.get("/api/admin/skins")
+def admin_skins(q: str = Query(default="", max_length=100), offset: int = Query(default=0, ge=0),
+                x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    require_admin(x_telegram_init_data)
+    needle = "%" + q.strip().lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    with db() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM skins WHERE LOWER(name) LIKE ? ESCAPE '\\'", (needle,)).fetchone()[0]
+        rows = conn.execute("SELECT * FROM skins WHERE LOWER(name) LIKE ? ESCAPE '\\' ORDER BY id DESC LIMIT 30 OFFSET ?", (needle, offset)).fetchall()
+    return {"items": [dict(row) for row in rows], "total": total, "offset": offset}
+
+
+@app.put("/api/admin/skins/{skin_id}")
+def admin_update_skin(skin_id: int, payload: SkinCreate, x_telegram_init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    require_admin(x_telegram_init_data)
+    validate_local_image(payload.image)
+    with db() as conn:
+        row = conn.execute(
+            "UPDATE skins SET name=?,weapon=?,skin=?,rarity=?,condition=?,price=?,stock=?,image=?,description=?,active=? WHERE id=? RETURNING *",
+            (payload.name, payload.weapon, payload.skin, payload.rarity, payload.condition, payload.price,
+             payload.stock, payload.image, payload.description, int(payload.active), skin_id),
+        ).fetchone()
+    if not row:
+        raise HTTPException(404, "Skin topilmadi")
+    return {"ok": True, "item": dict(row)}
 
 
 @app.delete("/api/admin/skins/{skin_id}")
@@ -416,6 +460,7 @@ def health():
     return {
         "ok": True,
         "mode": "demo",
+        "currency": "UZS",
         "catalog_source": "admin_managed",
         "version": "0.4.0",
         "revision": os.getenv("RAILWAY_GIT_COMMIT_SHA", ""),
